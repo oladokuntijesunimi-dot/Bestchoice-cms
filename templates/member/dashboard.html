@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+{% block title %}Member Dashboard{% endblock %}
+{% block content %}
+
+<div class="flex flex-col md:flex-row gap-6">
+
+    <!-- SIDEBAR -->
+    <aside class="md:w-64 flex-shrink-0">
+        <div class="bg-white rounded-xl shadow p-4 mb-4 flex items-center gap-3">
+            <img src="{{ url_for('secure_file', user_id=current_user.id, kind='passport') }}"
+                 class="w-12 h-12 rounded-lg object-cover border border-brand-100 flex-shrink-0" alt="Passport">
+            <div class="min-w-0">
+                <p class="font-semibold text-sm text-brand-900 truncate">{{ current_user.full_name }}</p>
+                <p class="text-xs text-brand-700/70 truncate">
+                    {{ current_user.membership_code or "No code yet" }} &middot; {{ current_user.work_position or "-" }}
+                </p>
+            </div>
+        </div>
+
+        <nav class="bg-white rounded-xl shadow p-2 flex md:flex-col gap-1 overflow-x-auto md:overflow-visible" id="sidebar-nav">
+            <button onclick="showTab('loan', this)" class="sidebar-btn active flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+                Loan
+            </button>
+            <button onclick="showTab('guarantor', this)" class="sidebar-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                Guarantor Requests
+                {% if guarantor_requests %}<span class="ml-auto bg-red-500 text-white rounded-full px-1.5 text-xs">{{ guarantor_requests|length }}</span>{% endif %}
+            </button>
+            <button onclick="showTab('vote', this)" class="sidebar-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><path d="m9 12 2 2 4-4"/><path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/></svg>
+                Voting
+                {% if election and election.status == 'Open' %}<span class="ml-auto w-2 h-2 rounded-full bg-green-500"></span>{% endif %}
+            </button>
+            <button onclick="showTab('gift', this)" class="sidebar-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>
+                Gift Preference
+                {% if gift_settings and gift_settings.is_active %}<span class="ml-auto w-2 h-2 rounded-full bg-green-500"></span>{% endif %}
+            </button>
+        </nav>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 min-w-0">
+
+    <!-- LOAN PANEL -->
+    <div id="tab-loan" class="tab-panel bg-white rounded-xl shadow p-6">
+        <h2 class="text-lg font-semibold mb-1">Apply for a Loan</h2>
+        <p class="text-sm text-brand-700/70 mb-4">Your current savings balance on record: <strong>₦{{ "%.2f"|format(current_user.savings_balance) }}</strong></p>
+
+        {% if not loan_types %}
+            <p class="text-brand-700/70 mb-6">No loan types are currently open for applications. Please check back later.</p>
+        {% else %}
+        <div class="space-y-3 mb-6">
+            {% for lt in loan_types %}
+            <label class="block border border-brand-100 rounded-lg px-4 py-3 cursor-pointer hover:bg-brand-50 loan-type-option"
+                   onclick="selectLoanType({{ lt.id }})">
+                <div class="flex items-start gap-3">
+                    <input type="radio" name="loan_type_radio" value="{{ lt.id }}" class="mt-1">
+                    <div>
+                        <p class="font-medium text-brand-900">
+                            {{ lt.name }}
+                            {% if lt.is_seasonal and lt.season_label %}
+                            <span class="ml-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{{ lt.season_label }}</span>
+                            {% endif %}
+                        </p>
+                        <p class="text-sm text-brand-700/70 mt-0.5">{{ lt.clause }}</p>
+                        <p class="text-sm text-brand-700 mt-1">
+                            Max for you right now: <strong>₦{{ "%.2f"|format(lt.max_amount_for(current_user)) }}</strong>
+                        </p>
+                    </div>
+                </div>
+            </label>
+            {% endfor %}
+        </div>
+
+        <form method="POST" action="{{ url_for('apply_loan') }}" id="loan-form" enctype="multipart/form-data" class="border-t pt-4">
+            <input type="hidden" name="loan_type_id" id="loan-form-type-id">
+            <div class="flex flex-wrap gap-3 mb-3">
+                <select name="option_id" id="loan-form-option" required class="border border-brand-200 rounded-lg px-3 py-2 flex-1 min-w-[220px]">
+                    <option value="">Select a loan type above first</option>
+                </select>
+                <input type="number" step="0.01" name="amount" placeholder="Amount requested (₦)" required
+                       class="border border-brand-200 rounded-lg px-3 py-2 flex-1 min-w-[180px]">
+            </div>
+
+            <p class="text-xs text-brand-700/70 mb-2">
+                Two guarantors are required, matching the official loan form — each vouches for a specific
+                amount, and both amounts must add up to your total requested amount.
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
+                <div class="border border-brand-100 rounded-lg p-3">
+                    <p class="text-xs font-medium text-brand-700 mb-2">Guarantor 1</p>
+                    <input type="text" name="guarantor_code_1" placeholder="Membership code" required
+                           class="w-full border border-brand-200 rounded-lg px-3 py-2 text-sm mb-2">
+                    <input type="number" step="0.01" name="guarantor_amount_1" placeholder="Amount guaranteed (₦)" required
+                           class="w-full border border-brand-200 rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div class="border border-brand-100 rounded-lg p-3">
+                    <p class="text-xs font-medium text-brand-700 mb-2">Guarantor 2</p>
+                    <input type="text" name="guarantor_code_2" placeholder="Membership code" required
+                           class="w-full border border-brand-200 rounded-lg px-3 py-2 text-sm mb-2">
+                    <input type="number" step="0.01" name="guarantor_amount_2" placeholder="Amount guaranteed (₦)" required
+                           class="w-full border border-brand-200 rounded-lg px-3 py-2 text-sm">
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-brand-800 mb-1">
+                    Signed Loan Application Form Receipt <span class="text-red-500">*</span>
+                </label>
+                <input type="file" name="application_receipt" accept=".png,.jpg,.jpeg,.webp,.pdf" required
+                       class="w-full text-sm border border-brand-200 rounded-lg px-3 py-2">
+                <p class="text-xs text-brand-700/50 mt-1">
+                    Upload a clear photo or scan of your signed physical loan application form (image or PDF). Required.
+                </p>
+            </div>
+
+            <button type="submit" class="bg-brand-700 hover:bg-brand-800 text-white px-5 py-2 rounded-lg text-sm font-medium">Apply</button>
+            <p class="text-xs text-brand-700/50 mt-2">
+                Both guarantors must be existing active members. They'll see this request in their own
+                portal under "Guarantor Requests" and must accept before the admin can approve your loan.
+            </p>
+        </form>
+        {% endif %}
+
+        <h3 class="text-sm font-semibold text-brand-700 mb-2 mt-6">Your Loan History</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-brand-700/70 border-b">
+                        <th class="py-2">Type</th><th>Amount</th><th>Tenure</th><th>Rate</th><th>Repayment</th><th>Guarantor</th><th>Status</th><th>Reason</th><th>Receipt</th><th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for loan in loans %}
+                    <tr class="border-b last:border-0">
+                        <td class="py-2">{{ loan.loan_type_name }}</td>
+                        <td>₦{{ "%.2f"|format(loan.amount) }}</td>
+                        <td>{{ loan.tenure_months }} mo</td>
+                        <td>{{ loan.interest_rate }}%</td>
+                        <td>₦{{ "%.2f"|format(loan.total_repayment) }}</td>
+                        <td>
+                            {% for g in loan.guarantors %}
+                            <div class="mb-1 last:mb-0">
+                                {{ g.guarantor.full_name }} (₦{{ "%.2f"|format(g.amount_guaranteed) }})
+                                <span class="block text-xs
+                                    {{ 'text-green-600' if g.status == 'Accepted'
+                                       else 'text-red-600' if g.status == 'Declined'
+                                       else 'text-yellow-600' }}">
+                                    {{ g.status }}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            <span class="px-2 py-0.5 rounded-full text-xs
+                                {{ 'bg-green-100 text-green-700' if loan.status == 'Approved'
+                                   else 'bg-red-100 text-red-700' if loan.status == 'Declined'
+                                   else 'bg-yellow-100 text-yellow-700' }}">
+                                {{ loan.status }}
+                            </span>
+                        </td>
+                        <td class="text-brand-700/70">{{ loan.admin_condition or "-" }}</td>
+                        <td>
+                            {% if loan.receipt_path %}
+                            <a href="{{ url_for('loan_receipt_file', loan_id=loan.id) }}" target="_blank" class="text-brand-700 underline text-xs">View</a>
+                            {% else %}
+                            <span class="text-brand-300 text-xs">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-brand-700/70">{{ loan.created_at.strftime("%d %b %Y") }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="10" class="py-4 text-brand-700/50 text-center">No loan applications yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- GUARANTOR REQUESTS PANEL -->
+    <div id="tab-guarantor" class="tab-panel bg-white rounded-xl shadow p-6 hidden">
+        <h2 class="text-lg font-semibold mb-4">Guarantor Requests</h2>
+        {% if not guarantor_requests %}
+            <p class="text-brand-700/70">You have no pending guarantor requests.</p>
+        {% else %}
+        <div class="space-y-3">
+            {% for slot in guarantor_requests %}
+            <div class="border border-brand-100 rounded-lg p-4">
+                <p class="text-brand-800 mb-3">
+                    You are <strong>{{ slot.loan.member.full_name }}</strong>'s guarantor
+                    (Membership Code: <strong>{{ slot.loan.member.membership_code }}</strong>) for
+                    <strong>₦{{ "%.2f"|format(slot.amount_guaranteed) }}</strong> of their
+                    <strong>₦{{ "%.2f"|format(slot.loan.amount) }} {{ slot.loan.loan_type_name }}</strong>
+                    loan application ({{ slot.loan.tenure_months }} months @ {{ slot.loan.interest_rate }}%).
+                    Do you accept or decline?
+                </p>
+                <div class="flex gap-2">
+                    <form method="POST" action="{{ url_for('respond_guarantor_request', slot_id=slot.id) }}">
+                        <input type="hidden" name="action" value="accept">
+                        <button class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Accept</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('respond_guarantor_request', slot_id=slot.id) }}"
+                          onsubmit="return confirm('Decline this guarantee request? This will also decline {{ slot.loan.member.full_name }}\'s loan application.');">
+                        <input type="hidden" name="action" value="decline">
+                        <button class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Decline</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- VOTE PANEL -->
+    <div id="tab-vote" class="tab-panel bg-white rounded-xl shadow p-6 hidden">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Voting</h2>
+            <span class="px-2 py-0.5 rounded-full text-xs
+                {{ 'bg-green-100 text-green-700' if election and election.status == 'Open'
+                   else 'bg-amber-100 text-amber-700' if election and election.status == 'Paused'
+                   else 'bg-brand-50 text-brand-700' }}">
+                {{ election.status.upper() if election else 'CLOSED' }}
+            </span>
+        </div>
+        {% if not election or election.status != 'Open' %}
+            <p class="text-brand-700/70">
+                {% if election and election.status == 'Paused' %}
+                    Voting is temporarily paused by the admin. Please check back shortly.
+                {% else %}
+                    Voting is not currently open. Please check back later.
+                {% endif %}
+            </p>
+        {% elif not positions %}
+            <p class="text-brand-700/70">No positions have been set up yet.</p>
+        {% else %}
+            {% for position in positions %}
+            <div class="mb-6 last:mb-0 border-b last:border-0 pb-6">
+                <h3 class="font-semibold text-brand-900 mb-3">{{ position.name }}</h3>
+                {% if position.id in my_votes %}
+                    <p class="text-green-700 text-sm bg-green-50 px-3 py-2 rounded-lg inline-block">✓ You have already voted for this position.</p>
+                {% else %}
+                <form method="POST" action="{{ url_for('cast_vote') }}" class="space-y-2">
+                    <input type="hidden" name="position_id" value="{{ position.id }}">
+                    {% for candidate in position.candidates %}
+                    <label class="flex items-center gap-2 border border-brand-100 rounded-lg px-3 py-2 cursor-pointer hover:bg-brand-50">
+                        <input type="radio" name="candidate_id" value="{{ candidate.id }}" required>
+                        <span>{{ candidate.name }}</span>
+                    </label>
+                    {% endfor %}
+                    <button type="submit" class="mt-2 bg-brand-700 hover:bg-brand-800 text-white px-5 py-2 rounded-lg text-sm font-medium">
+                        Cast Vote
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- GIFT PANEL -->
+    <div id="tab-gift" class="tab-panel bg-white rounded-xl shadow p-6 hidden">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">End-of-Year Gift Preference</h2>
+            <span class="px-2 py-0.5 rounded-full text-xs {{ 'bg-green-100 text-green-700' if gift_settings and gift_settings.is_active else 'bg-brand-50 text-brand-700' }}">
+                {{ "OPEN" if gift_settings and gift_settings.is_active else "CLOSED" }}
+            </span>
+        </div>
+        {% if gift %}
+            <p class="text-brand-700 mb-4">Your current preference: <strong>{{ gift.preference_type }}</strong></p>
+        {% endif %}
+        {% if gift_settings and gift_settings.is_active %}
+        <form method="POST" action="{{ url_for('set_gift_preference') }}" class="flex flex-col sm:flex-row gap-3">
+            <label class="flex-1 border border-brand-100 rounded-lg px-4 py-3 cursor-pointer hover:bg-brand-50 flex items-center gap-2">
+                <input type="radio" name="preference_type" value="Physical" {{ 'checked' if gift and gift.preference_type == 'Physical' }}>
+                <span>Physical Gift (holiday package/goods)</span>
+            </label>
+            <label class="flex-1 border border-brand-100 rounded-lg px-4 py-3 cursor-pointer hover:bg-brand-50 flex items-center gap-2">
+                <input type="radio" name="preference_type" value="Monetized" {{ 'checked' if gift and gift.preference_type == 'Monetized' }}>
+                <span>Monetized Cash (direct payout)</span>
+            </label>
+            <button type="submit" class="bg-brand-700 hover:bg-brand-800 text-white px-5 py-2 rounded-lg text-sm font-medium">Save</button>
+        </form>
+        {% else %}
+        <p class="text-brand-700/70">
+            Gift preference selection is not currently open. The admin will announce when it opens.
+            {% if gift %}Your preference above was saved from a previous window.{% endif %}
+        </p>
+        {% endif %}
+    </div>
+
+    </main>
+</div>
+
+<style>
+.sidebar-btn { color: #163A29; }
+.sidebar-btn:hover { background-color: #EEF5F1; }
+.sidebar-btn.active { background-color: #1F4E38; color: #ffffff; }
+.sidebar-btn.active svg { color: #F3E7C8; }
+</style>
+
+<script>
+function showTab(name, btn) {
+    document.querySelectorAll('.tab-panel').forEach(el => el.classList.add('hidden'));
+    document.getElementById('tab-' + name).classList.remove('hidden');
+    document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+const loanTypeOptions = {
+    {% for lt in loan_types %}
+    {{ lt.id }}: [{% for opt in lt.options %}{id: {{ opt.id }}, label: "{{ opt.tenure_months }} months @ {{ opt.interest_rate }}%"},{% endfor %}],
+    {% endfor %}
+};
+
+function selectLoanType(loanTypeId) {
+    document.getElementById('loan-form-type-id').value = loanTypeId;
+    const select = document.getElementById('loan-form-option');
+    select.innerHTML = '';
+    (loanTypeOptions[loanTypeId] || []).forEach(opt => {
+        const el = document.createElement('option');
+        el.value = opt.id;
+        el.textContent = opt.label;
+        select.appendChild(el);
+    });
+    document.querySelectorAll('.loan-type-option').forEach(el => el.classList.remove('bg-brand-50', 'border-brand-400'));
+}
+</script>
+{% endblock %}

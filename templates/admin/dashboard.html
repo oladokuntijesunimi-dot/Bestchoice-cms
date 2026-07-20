@@ -1,0 +1,626 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+{% set socketio_needed = true %}
+{% block content %}
+
+<h1 class="text-2xl font-bold text-brand-900 mb-4">Admin Dashboard</h1>
+
+<div class="flex flex-col md:flex-row gap-6">
+
+    <!-- SIDEBAR -->
+    <aside class="md:w-64 flex-shrink-0">
+        <nav class="bg-white rounded-xl shadow p-2 flex md:flex-col gap-1 overflow-x-auto md:overflow-visible" id="sidebar-nav">
+            <button onclick="showTab('pending', this)" class="sidebar-btn active flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                Pending Signups
+                {% if pending_members %}<span class="ml-auto bg-red-500 text-white rounded-full px-1.5 text-xs">{{ pending_members|length }}</span>{% endif %}
+            </button>
+            <button onclick="showTab('members', this)" class="sidebar-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                Members
+            </button>
+            <button onclick="showTab('loans', this)" class="sidebar-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+                Loans
+                {% if pending_loans %}<span class="ml-auto bg-red-500 text-white rounded-full px-1.5 text-xs">{{ pending_loans|length }}</span>{% endif %}
+            </button>
+            <button onclick="showTab('loantypes', this)" class="sidebar-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                Loan Types
+            </button>
+            <button onclick="showTab('voting', this)" class="sidebar-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><path d="m9 12 2 2 4-4"/><path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/></svg>
+                Voting
+                {% if election and election.status == 'Open' %}<span class="ml-auto w-2 h-2 rounded-full bg-green-500"></span>{% endif %}
+            </button>
+            <button onclick="showTab('gifts', this)" class="sidebar-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>
+                Gift Preferences
+                {% if gift_settings and gift_settings.is_active %}<span class="ml-auto w-2 h-2 rounded-full bg-green-500"></span>{% endif %}
+            </button>
+        </nav>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 min-w-0">
+
+<!-- PENDING SIGNUPS -->
+<div id="tab-pending" class="tab-panel bg-white rounded-xl shadow p-6">
+    <h2 class="text-lg font-semibold mb-4">Pending Signups</h2>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-brand-700/70 border-b">
+                    <th class="py-2">Name</th><th>Account No.</th><th>Position</th><th>Docs</th><th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in pending_members %}
+                <tr class="border-b last:border-0">
+                    <td class="py-2">{{ m.full_name }}</td>
+                    <td>{{ m.account_number }}</td>
+                    <td>{{ m.work_position or "-" }}</td>
+                    <td>
+                        <a href="{{ url_for('secure_file', user_id=m.id, kind='passport') }}" target="_blank" class="text-brand-700 underline mr-2">Passport</a>
+                        <a href="{{ url_for('secure_file', user_id=m.id, kind='signature') }}" target="_blank" class="text-brand-700 underline mr-2">Signature</a>
+                        {% if m.nin_path %}
+                        <a href="{{ url_for('secure_file', user_id=m.id, kind='nin') }}" target="_blank" class="text-brand-700 underline">NIN</a>
+                        {% endif %}
+                    </td>
+                    <td class="flex gap-2 py-2">
+                        <form method="POST" action="{{ url_for('approve_member', user_id=m.id) }}">
+                            <button class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium">Approve</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('reject_member', user_id=m.id) }}"
+                              onsubmit="return confirm('Reject {{ m.full_name }}\'s registration? This cannot be undone.');">
+                            <button class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium">Reject</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="py-4 text-brand-700/50 text-center">No pending signups.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- MEMBERS -->
+<div id="tab-members" class="tab-panel bg-white rounded-xl shadow p-6 hidden">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+        <h2 class="text-lg font-semibold">Members Directory</h2>
+        <div class="flex gap-2 flex-wrap">
+            <a href="{{ url_for('export_members') }}" class="bg-brand-50 hover:bg-brand-100 text-brand-800 px-3 py-2 rounded-lg text-sm font-medium">Export Excel</a>
+            <a href="{{ url_for('export_members_csv') }}" class="bg-brand-50 hover:bg-brand-100 text-brand-800 px-3 py-2 rounded-lg text-sm font-medium">Download CSV</a>
+            <a href="{{ url_for('members_brief_pdf_combined') }}" class="bg-brand-50 hover:bg-brand-100 text-brand-800 px-3 py-2 rounded-lg text-sm font-medium">All Signatures (Brief PDF)</a>
+            <button onclick="document.getElementById('add-member-modal').classList.remove('hidden')"
+                    class="bg-brand-50 hover:bg-brand-100 text-brand-800 px-3 py-2 rounded-lg text-sm font-medium">Add Member</button>
+            <button onclick="document.getElementById('bulk-import-modal').classList.remove('hidden')"
+                    class="bg-brand-700 hover:bg-brand-800 text-white px-3 py-2 rounded-lg text-sm font-medium">Bulk Import</button>
+        </div>
+    </div>
+
+    <form method="GET" class="mb-4">
+        <input type="hidden" name="q" id="search-noop">
+        <div class="flex gap-2">
+            <input type="text" name="q" value="{{ search_q }}" placeholder="Search by name, code, or account number"
+                   class="border border-brand-200 rounded-lg px-3 py-2 flex-1 text-sm">
+            <button type="submit" class="bg-brand-700 text-white px-4 py-2 rounded-lg text-sm">Search</button>
+        </div>
+    </form>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-brand-700/70 border-b">
+                    <th class="py-2">Code</th><th>Name</th><th>Account No.</th><th>Position</th><th>Savings</th><th>Profile</th><th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in active_members %}
+                <tr class="border-b last:border-0">
+                    <td class="py-2">{{ m.membership_code or "-" }}</td>
+                    <td>{{ m.full_name }}</td>
+                    <td>{{ m.account_number }}</td>
+                    <td>{{ m.work_position or "-" }}</td>
+                    <td>₦{{ "%.2f"|format(m.savings_balance) }}</td>
+                    <td>
+                        <span class="px-2 py-0.5 rounded-full text-xs {{ 'bg-green-100 text-green-700' if m.is_profile_complete else 'bg-yellow-100 text-yellow-700' }}">
+                            {{ "Complete" if m.is_profile_complete else "Incomplete" }}
+                        </span>
+                    </td>
+                    <td class="flex gap-2 py-2 flex-wrap">
+                        <a href="{{ url_for('member_pdf', user_id=m.id) }}" class="text-brand-700 underline text-xs">PDF</a>
+                        <a href="{{ url_for('member_brief_pdf', user_id=m.id) }}" class="text-brand-700 underline text-xs">Brief PDF</a>
+                        {% if m.nin_path %}
+                        <a href="{{ url_for('secure_file', user_id=m.id, kind='nin') }}" target="_blank" class="text-brand-700 underline text-xs">NIN</a>
+                        {% endif %}
+                        <button onclick="openEditModal({{ m.id }}, '{{ m.full_name|e }}', '{{ m.account_number|e }}', '{{ (m.work_position or '')|e }}', {{ m.savings_balance }}, '{{ (m.email or '')|e }}', '{{ (m.phone_number or '')|e }}', '{{ (m.office_number or '')|e }}')"
+                                class="text-brand-700 underline text-xs">Edit</button>
+                        <form id="reset-password-form-{{ m.id }}" action="{{ url_for('admin_reset_member_password', user_id=m.id) }}" method="POST" class="hidden"></form>
+                        <button type="submit" form="reset-password-form-{{ m.id }}"
+                                onclick="return confirm('Reset this member\'s password to the default value and email them?')"
+                                class="text-brand-700 underline text-xs">Reset PW</button>
+                        <button onclick="openDeleteModal({{ m.id }}, '{{ m.full_name|e }}', '{{ m.membership_code or 'N/A' }}')"
+                                class="text-red-600 underline text-xs">Delete</button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="py-4 text-brand-700/50 text-center">No members found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- LOANS -->
+<div id="tab-loans" class="tab-panel bg-white rounded-xl shadow p-6 hidden">
+    <h2 class="text-lg font-semibold mb-4">Pending Loan Applications</h2>
+    <div class="overflow-x-auto mb-8">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-brand-700/70 border-b">
+                    <th class="py-2">Member</th><th>Type</th><th>Amount</th><th>Tenure</th><th>Rate</th><th>Repayment</th><th>Guarantor</th><th>Receipt</th><th>Date</th><th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for loan in pending_loans %}
+                <tr class="border-b last:border-0">
+                    <td class="py-2">{{ loan.member.full_name }} ({{ loan.member.membership_code or "-" }})</td>
+                    <td>{{ loan.loan_type_name }}</td>
+                    <td>₦{{ "%.2f"|format(loan.amount) }}</td>
+                    <td>{{ loan.tenure_months }} mo</td>
+                    <td>{{ loan.interest_rate }}%</td>
+                    <td>₦{{ "%.2f"|format(loan.total_repayment) }}</td>
+                    <td>
+                        {% for g in loan.guarantors %}
+                        <div class="mb-1 last:mb-0">
+                            {{ g.guarantor.full_name }} (₦{{ "%.2f"|format(g.amount_guaranteed) }})
+                            <span class="block text-xs
+                                {{ 'text-green-600' if g.status == 'Accepted'
+                                   else 'text-red-600' if g.status == 'Declined'
+                                   else 'text-yellow-600' }}">
+                                {{ g.status }}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% if loan.receipt_path %}
+                        <a href="{{ url_for('loan_receipt_file', loan_id=loan.id) }}" target="_blank" class="text-brand-700 underline text-xs">View</a>
+                        {% else %}
+                        <span class="text-red-500 text-xs">Missing</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ loan.created_at.strftime("%d %b %Y") }}</td>
+                    <td class="flex gap-2 py-2">
+                        <form method="POST" action="{{ url_for('approve_loan', loan_id=loan.id) }}">
+                            <button class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium"
+                                    {{ 'disabled title="Both guarantors must accept first"' if not loan.all_guarantors_accepted else '' }}>
+                                Approve
+                            </button>
+                        </form>
+                        <button onclick="openDeclineModal({{ loan.id }})"
+                                class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium">Decline</button>
+                        <form method="POST" action="{{ url_for('delete_loan', loan_id=loan.id) }}"
+                              onsubmit="return confirm('Delete this loan application from {{ loan.member.full_name|e }}? This cannot be undone.');">
+                            <button class="bg-brand-100 hover:bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-xs font-medium">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="10" class="py-4 text-brand-700/50 text-center">No pending loans.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <h3 class="text-sm font-semibold text-brand-700 mb-2">Recent Decisions</h3>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-brand-700/70 border-b">
+                    <th class="py-2">Member</th><th>Type</th><th>Amount</th><th>Guarantors</th><th>Status</th><th>Reason</th><th>Receipt</th><th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for loan in decided_loans %}
+                <tr class="border-b last:border-0">
+                    <td class="py-2">{{ loan.member.full_name }}</td>
+                    <td>{{ loan.loan_type_name }}</td>
+                    <td>₦{{ "%.2f"|format(loan.amount) }}</td>
+                    <td>
+                        {% for g in loan.guarantors %}{{ g.guarantor.full_name }} ({{ g.status }}){% if not loop.last %}, {% endif %}{% endfor %}
+                    </td>
+                    <td>
+                        <span class="px-2 py-0.5 rounded-full text-xs {{ 'bg-green-100 text-green-700' if loan.status == 'Approved' else 'bg-red-100 text-red-700' }}">
+                            {{ loan.status }}
+                        </span>
+                    </td>
+                    <td class="text-brand-700/70">{{ loan.admin_condition or "-" }}</td>
+                    <td>
+                        {% if loan.receipt_path %}
+                        <a href="{{ url_for('loan_receipt_file', loan_id=loan.id) }}" target="_blank" class="text-brand-700 underline text-xs">View</a>
+                        {% else %}
+                        <span class="text-brand-300 text-xs">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="POST" action="{{ url_for('delete_loan', loan_id=loan.id) }}"
+                              onsubmit="return confirm('Delete this loan application from {{ loan.member.full_name|e }}? This cannot be undone.');">
+                            <button class="text-red-600 underline text-xs">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="py-4 text-brand-700/50 text-center">No decisions yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- LOAN TYPES -->
+<div id="tab-loantypes" class="tab-panel bg-white rounded-xl shadow p-6 hidden">
+    <h2 class="text-lg font-semibold mb-1">Loan Types & Clauses</h2>
+    <p class="text-sm text-brand-700/70 mb-4">
+        Adjust caps, rates shown to members, and open/close seasonal loans (e.g. Household in December,
+        Commodity & Seasonal loans for Christmas/Ileya/Itunu-Awe).
+    </p>
+
+    {% for lt in loan_types %}
+    <div class="border border-brand-100 rounded-lg p-4 mb-4">
+        <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+                <h3 class="font-semibold text-brand-900">{{ lt.name }}</h3>
+                <span class="px-2 py-0.5 rounded-full text-xs {{ 'bg-green-100 text-green-700' if lt.is_active else 'bg-brand-50 text-brand-700/70' }}">
+                    {{ "OPEN" if lt.is_active else "CLOSED" }}
+                </span>
+                {% if lt.is_seasonal %}<span class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700">Seasonal</span>{% endif %}
+            </div>
+            <form method="POST" action="{{ url_for('toggle_loan_type', loan_type_id=lt.id) }}">
+                <button class="px-3 py-1.5 rounded-lg text-xs font-medium text-white {{ 'bg-red-600 hover:bg-red-700' if lt.is_active else 'bg-green-600 hover:bg-green-700' }}">
+                    {{ "Close" if lt.is_active else "Open" }}
+                </button>
+            </form>
+        </div>
+
+        <form method="POST" action="{{ url_for('edit_loan_type', loan_type_id=lt.id) }}" class="space-y-2 mb-3">
+            <textarea name="clause" rows="2" class="w-full border border-brand-200 rounded-lg px-3 py-2 text-sm">{{ lt.clause }}</textarea>
+            <div class="flex flex-wrap gap-3">
+                {% if lt.basis == 'savings_multiple' %}
+                <div class="flex items-center gap-2">
+                    <label class="text-sm text-brand-700">Multiplier of savings:</label>
+                    <input type="number" step="0.1" name="multiplier" value="{{ lt.multiplier }}"
+                           class="border border-brand-200 rounded-lg px-2 py-1.5 text-sm w-24">
+                </div>
+                {% else %}
+                <div class="flex items-center gap-2">
+                    <label class="text-sm text-brand-700">Max amount (₦):</label>
+                    <input type="number" step="0.01" name="fixed_max_amount" value="{{ lt.fixed_max_amount }}"
+                           class="border border-brand-200 rounded-lg px-2 py-1.5 text-sm w-36">
+                </div>
+                {% endif %}
+                {% if lt.is_seasonal %}
+                <div class="flex items-center gap-2">
+                    <label class="text-sm text-brand-700">Season label:</label>
+                    <input type="text" name="season_label" value="{{ lt.season_label or '' }}" placeholder="e.g. Christmas 2026"
+                           class="border border-brand-200 rounded-lg px-2 py-1.5 text-sm w-40">
+                </div>
+                {% endif %}
+                <button type="submit" class="bg-brand-700 hover:bg-brand-800 text-white px-4 py-1.5 rounded-lg text-sm font-medium">Save</button>
+            </div>
+        </form>
+
+        <div class="flex flex-wrap items-center gap-2">
+            {% for opt in lt.options %}
+            <span class="inline-flex items-center gap-1 bg-brand-50 text-brand-800 text-xs px-2 py-1 rounded-full">
+                {{ opt.tenure_months }} mo @ {{ opt.interest_rate }}%
+                <form method="POST" action="{{ url_for('delete_loan_type_option', option_id=opt.id) }}" class="inline"
+                      onsubmit="return confirm('Remove this option?');">
+                    <button class="text-red-500 ml-1">&times;</button>
+                </form>
+            </span>
+            {% endfor %}
+            <form method="POST" action="{{ url_for('add_loan_type_option', loan_type_id=lt.id) }}" class="flex items-center gap-1">
+                <input type="number" name="tenure_months" placeholder="Months" required class="border border-brand-200 rounded-lg px-2 py-1 text-xs w-20">
+                <input type="number" step="0.1" name="interest_rate" placeholder="Rate %" required class="border border-brand-200 rounded-lg px-2 py-1 text-xs w-20">
+                <button class="text-xs bg-brand-100 hover:bg-brand-200 px-2 py-1 rounded-lg">+ Add option</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- VOTING -->
+<div id="tab-voting" class="tab-panel bg-white rounded-xl shadow p-6 hidden">
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <h2 class="text-lg font-semibold">Voting Management</h2>
+        <div class="flex gap-2">
+            <form method="POST" action="{{ url_for('set_election_status') }}">
+                <input type="hidden" name="status" value="Open">
+                <button class="px-3 py-2 rounded-lg text-sm font-medium {{ 'bg-green-600 text-white' if election.status == 'Open' else 'bg-green-50 text-green-700 hover:bg-green-100' }}">
+                    Open
+                </button>
+            </form>
+            <form method="POST" action="{{ url_for('set_election_status') }}">
+                <input type="hidden" name="status" value="Paused">
+                <button class="px-3 py-2 rounded-lg text-sm font-medium {{ 'bg-amber-600 text-white' if election.status == 'Paused' else 'bg-amber-50 text-amber-700 hover:bg-amber-100' }}">
+                    Pause
+                </button>
+            </form>
+            <form method="POST" action="{{ url_for('set_election_status') }}">
+                <input type="hidden" name="status" value="Closed">
+                <button class="px-3 py-2 rounded-lg text-sm font-medium {{ 'bg-red-600 text-white' if election.status == 'Closed' else 'bg-red-50 text-red-700 hover:bg-red-100' }}">
+                    Close
+                </button>
+            </form>
+        </div>
+    </div>
+    <p class="text-sm mb-4">
+        Status:
+        <span class="px-2 py-0.5 rounded-full text-xs
+            {{ 'bg-green-100 text-green-700' if election.status == 'Open'
+               else 'bg-amber-100 text-amber-700' if election.status == 'Paused'
+               else 'bg-brand-50 text-brand-700' }}">
+            {{ election.status.upper() }}
+        </span>
+        {% if election.status == 'Paused' %}<span class="text-brand-700/50 text-xs ml-1">— members see existing votes but can't cast new ones until reopened</span>{% endif %}
+    </p>
+
+    <form method="POST" action="{{ url_for('add_position') }}" class="flex flex-wrap gap-3 mb-6 border-b pb-6">
+        <input type="text" name="position_name" placeholder="Position (e.g. President)" required
+               class="border border-brand-200 rounded-lg px-3 py-2 flex-1 min-w-[160px]">
+        <input type="text" name="candidate_names" placeholder="Candidates, comma-separated" required
+               class="border border-brand-200 rounded-lg px-3 py-2 flex-1 min-w-[220px]">
+        <button type="submit" class="bg-brand-700 hover:bg-brand-800 text-white px-5 py-2 rounded-lg text-sm font-medium">Add Position</button>
+    </form>
+
+    {% for position in positions %}
+    <div class="mb-8 last:mb-0">
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="font-semibold text-brand-900">{{ position.name }}</h3>
+            <form method="POST" action="{{ url_for('delete_position', position_id=position.id) }}"
+                  onsubmit="return confirm('Delete position {{ position.name }} and all its votes? This cannot be undone.');">
+                <button class="text-red-600 underline text-xs">Delete Position</button>
+            </form>
+        </div>
+        <canvas id="chart-{{ position.id }}" height="80"></canvas>
+    </div>
+    {% else %}
+    <p class="text-brand-700/50 text-center py-4">No positions created yet.</p>
+    {% endfor %}
+</div>
+
+<!-- GIFT PREFERENCES -->
+<div id="tab-gifts" class="tab-panel bg-white rounded-xl shadow p-6 hidden">
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <h2 class="text-lg font-semibold">Gift Preferences</h2>
+        <div class="flex gap-2">
+            <form method="POST" action="{{ url_for('toggle_gift_preference') }}">
+                <button class="px-4 py-2 rounded-lg text-sm font-medium text-white {{ 'bg-red-600 hover:bg-red-700' if gift_settings and gift_settings.is_active else 'bg-green-600 hover:bg-green-700' }}">
+                    {{ "Close Selection" if gift_settings and gift_settings.is_active else "Open Selection" }}
+                </button>
+            </form>
+            <a href="{{ url_for('export_gift_preferences') }}" class="bg-brand-50 hover:bg-brand-100 text-brand-800 px-3 py-2 rounded-lg text-sm font-medium">Export Excel</a>
+        </div>
+    </div>
+    <p class="text-sm mb-4">
+        Status:
+        <span class="px-2 py-0.5 rounded-full text-xs {{ 'bg-green-100 text-green-700' if gift_settings and gift_settings.is_active else 'bg-brand-50 text-brand-700' }}">
+            {{ "OPEN" if gift_settings and gift_settings.is_active else "CLOSED" }}
+        </span>
+        <span class="text-brand-700/50 text-xs ml-1">— members can only choose their preference while this is open</span>
+    </p>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-brand-700/70 border-b">
+                    <th class="py-2">Code</th><th>Name</th><th>Account No.</th><th>Preference</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m, gp in gift_rows %}
+                <tr class="border-b last:border-0">
+                    <td class="py-2">{{ m.membership_code or "-" }}</td>
+                    <td>{{ m.full_name }}</td>
+                    <td>{{ m.account_number }}</td>
+                    <td>{{ gp.preference_type }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="py-4 text-brand-700/50 text-center">No preferences submitted yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+    </main>
+</div>
+
+<!-- ADD MEMBER MODAL -->
+<div id="add-member-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+        <h3 class="font-semibold text-lg mb-2">Add Existing Member</h3>
+        <p class="text-sm text-brand-700/70 mb-4">
+            For adding one existing member at a time. They'll get the default password and fill in
+            their email and other details themselves when they complete their profile on first login —
+            same as bulk import.
+        </p>
+        <form method="POST" action="{{ url_for('add_member_manual') }}">
+            <label class="block text-sm font-medium text-brand-800 mb-1">Full Name</label>
+            <input type="text" name="full_name" required class="w-full border border-brand-200 rounded-lg px-3 py-2 mb-3 text-sm">
+            <label class="block text-sm font-medium text-brand-800 mb-1">Membership Code</label>
+            <input type="text" name="membership_code" required placeholder="e.g. MBC-2025-9001"
+                   class="w-full border border-brand-200 rounded-lg px-3 py-2 mb-3 text-sm">
+            <label class="block text-sm font-medium text-brand-800 mb-1">Account Number</label>
+            <input type="text" name="account_number" required class="w-full border border-brand-200 rounded-lg px-3 py-2 mb-3 text-sm">
+            <label class="block text-sm font-medium text-brand-800 mb-1">Phone Number (optional)</label>
+            <input type="text" name="phone_number" class="w-full border border-brand-200 rounded-lg px-3 py-2 mb-3 text-sm">
+            <label class="block text-sm font-medium text-brand-800 mb-1">Work Position (optional)</label>
+            <input type="text" name="work_position" class="w-full border border-brand-200 rounded-lg px-3 py-2 mb-4 text-sm">
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="document.getElementById('add-member-modal').classList.add('hidden')"
+                        class="px-4 py-2 rounded-lg text-sm border">Cancel</button>
+                <button type="submit" class="px-4 py-2 rounded-lg text-sm bg-brand-700 text-white">Add Member</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- BULK IMPORT MODAL -->
+<div id="bulk-import-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+        <h3 class="font-semibold text-lg mb-2">Bulk Import Existing Members</h3>
+        <p class="text-sm text-brand-700/70 mb-4">
+            CSV/Excel with columns: <code>full_name</code>, <code>membership_code</code>, <code>account_number</code>, optionally <code>work_position</code> and <code>phone_number</code>.
+            Common header variants (e.g. <code>NAME</code>, <code>DEPARTMENT</code>, <code>PHONE NO</code>) are recognized automatically.
+            Imported members get the default password. Email and other details are filled in by the
+            member themselves when they complete their profile on first login.
+        </p>
+        <form method="POST" action="{{ url_for('bulk_import_members') }}" enctype="multipart/form-data">
+            <input type="file" name="import_file" accept=".csv,.xlsx,.xls" required class="w-full text-sm mb-4">
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="document.getElementById('bulk-import-modal').classList.add('hidden')"
+                        class="px-4 py-2 rounded-lg text-sm border">Cancel</button>
+                <button type="submit" class="px-4 py-2 rounded-lg text-sm bg-brand-700 text-white">Import</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- EDIT MEMBER MODAL -->
+<div id="edit-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+        <h3 class="font-semibold text-lg mb-4">Edit Member</h3>
+        <form method="POST" id="edit-form">
+            <label class="block text-sm font-medium text-brand-800 mb-1">Full Name</label>
+            <input type="text" name="full_name" id="edit-full-name" required class="w-full border border-brand-200 rounded-lg px-3 py-2 mb-3 text-sm">
+            <label class="block text-sm font-medium text-brand-800 mb-1">Account Number</label>
+            <input type="text" name="account_number" id="edit-account" required class="w-full border border-brand-200 rounded-lg px-3 py-2 mb-3 text-sm">
+            <label class="block text-sm font-medium text-brand-800 mb-1">Phone Number</label>
+            <input type="text" name="phone_number" id="edit-phone" class="w-full border border-brand-200 rounded-lg px-3 py-2 mb-3 text-sm">
+            <label class="block text-sm font-medium text-brand-800 mb-1">Office Number</label>
+            <input type="text" name="office_number" id="edit-office" class="w-full border border-brand-200 rounded-lg px-3 py-2 mb-3 text-sm">
+            <label class="block text-sm font-medium text-brand-800 mb-1">Work Position</label>
+            <input type="text" name="work_position" id="edit-position" class="w-full border border-brand-200 rounded-lg px-3 py-2 mb-3 text-sm">
+            <label class="block text-sm font-medium text-brand-800 mb-1">Email</label>
+            <input type="email" name="email" id="edit-email" placeholder="you@example.com" class="w-full border border-brand-200 rounded-lg px-3 py-2 mb-3 text-sm">
+            <label class="block text-sm font-medium text-brand-800 mb-1">Savings Balance (₦)</label>
+            <input type="number" step="0.01" name="savings_balance" id="edit-savings" class="w-full border border-brand-200 rounded-lg px-3 py-2 mb-4 text-sm">
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="document.getElementById('edit-modal').classList.add('hidden')"
+                        class="px-4 py-2 rounded-lg text-sm border">Cancel</button>
+                <button type="submit" class="px-4 py-2 rounded-lg text-sm bg-brand-700 text-white">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- DELETE MEMBER MODAL -->
+<div id="delete-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+        <h3 class="font-semibold text-lg mb-2 text-red-700">Delete Member</h3>
+        <p class="text-sm text-brand-700 mb-4">
+            You are about to permanently delete <strong id="delete-name"></strong>
+            (Code: <strong id="delete-code"></strong>). This will remove their account, uploaded documents,
+            loans, votes, and gift preferences. <strong>This action cannot be undone.</strong>
+        </p>
+        <form method="POST" id="delete-form">
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="document.getElementById('delete-modal').classList.add('hidden')"
+                        class="px-4 py-2 rounded-lg text-sm border">Cancel</button>
+                <button type="submit" class="px-4 py-2 rounded-lg text-sm bg-red-600 text-white">Delete Permanently</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- DECLINE LOAN MODAL -->
+<div id="decline-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+        <h3 class="font-semibold text-lg mb-2">Decline Loan</h3>
+        <p class="text-sm text-brand-700/70 mb-3">Please state the reason for declining this loan.</p>
+        <form method="POST" id="decline-form">
+            <textarea name="reason" required placeholder="e.g. Insufficient share capital"
+                      class="w-full border border-brand-200 rounded-lg px-3 py-2 mb-4 text-sm" rows="3"></textarea>
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="document.getElementById('decline-modal').classList.add('hidden')"
+                        class="px-4 py-2 rounded-lg text-sm border">Cancel</button>
+                <button type="submit" class="px-4 py-2 rounded-lg text-sm bg-red-600 text-white">Decline</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.sidebar-btn { color: #163A29; }
+.sidebar-btn:hover { background-color: #EEF5F1; }
+.sidebar-btn.active { background-color: #1F4E38; color: #ffffff; }
+.sidebar-btn.active svg { color: #F3E7C8; }
+</style>
+
+<script>
+function showTab(name, btn) {
+    document.querySelectorAll('.tab-panel').forEach(el => el.classList.add('hidden'));
+    document.getElementById('tab-' + name).classList.remove('hidden');
+    document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+function openEditModal(id, name, accountNumber, position, savings, email, phone, office) {
+    document.getElementById('edit-form').action = '/admin/member/' + id + '/edit';
+    document.getElementById('edit-full-name').value = name;
+    document.getElementById('edit-account').value = accountNumber;
+    document.getElementById('edit-phone').value = phone;
+    document.getElementById('edit-office').value = office;
+    document.getElementById('edit-position').value = position;
+    document.getElementById('edit-savings').value = savings;
+    document.getElementById('edit-email').value = email;
+    document.getElementById('edit-modal').classList.remove('hidden');
+}
+
+function openDeleteModal(id, name, code) {
+    document.getElementById('delete-form').action = '/admin/member/' + id + '/delete';
+    document.getElementById('delete-name').textContent = name;
+    document.getElementById('delete-code').textContent = code;
+    document.getElementById('delete-modal').classList.remove('hidden');
+}
+
+function openDeclineModal(loanId) {
+    document.getElementById('decline-form').action = '/admin/loan/' + loanId + '/decline';
+    document.getElementById('decline-modal').classList.remove('hidden');
+}
+
+// ---- Voting charts + live updates ----
+const charts = {};
+{% for position in positions %}
+charts[{{ position.id }}] = new Chart(document.getElementById('chart-{{ position.id }}'), {
+    type: 'bar',
+    data: {
+        labels: [{% for c in position.candidates %}'{{ c.name|e }}',{% endfor %}],
+        datasets: [{
+            label: 'Votes',
+            data: [{% for c in position.candidates %}{{ c.votes|length }},{% endfor %}],
+            backgroundColor: '#1F4E38'
+        }]
+    },
+    options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+});
+{% endfor %}
+
+const positionNameToId = { {% for position in positions %}"{{ position.name|e }}": {{ position.id }},{% endfor %} };
+
+if (typeof io !== 'undefined') {
+    const socket = io();
+    socket.on('vote_update', (data) => {
+        const posId = positionNameToId[data.position];
+        if (posId && charts[posId]) {
+            charts[posId].data.labels = data.results.map(r => r.candidate);
+            charts[posId].data.datasets[0].data = data.results.map(r => r.votes);
+            charts[posId].update();
+        }
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}Complete Your Profile{% endblock %}
+{% block content %}
+<div class="max-w-lg mx-auto mt-8 mb-8">
+    <div class="bg-white rounded-2xl shadow-lg border border-brand-100 overflow-hidden">
+        <div class="h-1.5 bg-gradient-to-r from-brand-600 via-gold-500 to-brand-600"></div>
+        <div class="p-8">
+            <h1 class="text-2xl font-display font-semibold text-brand-900 mb-1">Complete Your Registration</h1>
+            <p class="text-brand-700/70 text-sm mb-6">
+                Welcome, {{ current_user.full_name }}! You're logging in with a default password —
+                please set your own to continue. Membership Code: <strong class="text-brand-900">{{ current_user.membership_code }}</strong>
+            </p>
+
+            <form method="POST" enctype="multipart/form-data" class="space-y-4">
+                {% if needs_work_position %}
+                <div>
+                    <label class="block text-sm font-medium text-brand-800 mb-1">Work Position</label>
+                    <input type="text" name="work_position" required
+                           class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                </div>
+                {% endif %}
+                {% if needs_office_number %}
+                <div>
+                    <label class="block text-sm font-medium text-brand-800 mb-1">Office Number</label>
+                    <input type="text" name="office_number" required
+                           class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                </div>
+                {% endif %}
+                {% if needs_employer %}
+                <div>
+                    <label class="block text-sm font-medium text-brand-800 mb-1">Employer</label>
+                    <input type="text" name="employer" required
+                           class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                </div>
+                {% endif %}
+                {% if needs_marital_status or needs_sex %}
+                <div class="grid grid-cols-2 gap-3">
+                    {% if needs_marital_status %}
+                    <div>
+                        <label class="block text-sm font-medium text-brand-800 mb-1">Marital Status</label>
+                        <select name="marital_status" required
+                                class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                            <option value="">Select</option>
+                            <option value="Single">Single</option>
+                            <option value="Married">Married</option>
+                            <option value="Divorced">Divorced</option>
+                            <option value="Widowed">Widowed</option>
+                        </select>
+                    </div>
+                    {% endif %}
+                    {% if needs_sex %}
+                    <div>
+                        <label class="block text-sm font-medium text-brand-800 mb-1">Sex</label>
+                        <select name="sex" required
+                                class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                            <option value="">Select</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                        </select>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if needs_email %}
+                <div>
+                    <label class="block text-sm font-medium text-brand-800 mb-1">Email (optional)</label>
+                    <input type="email" name="email" placeholder="you@example.com"
+                           class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                    <p class="text-xs text-brand-700/60 mt-1">If provided, you'll be emailed if anyone names you as a loan guarantor.</p>
+                </div>
+                {% endif %}
+
+                {% if needs_bankers_branch or needs_application_fee or needs_starting_contribution or needs_deduction_due_date or needs_preferred_deduction_month_year %}
+                <div class="border-t border-brand-100 pt-4">
+                    <p class="text-sm font-semibold text-brand-900 mb-3">Contribution &amp; Deduction Details</p>
+                    <div class="space-y-4">
+                        {% if needs_bankers_branch %}
+                        <div>
+                            <label class="block text-sm font-medium text-brand-800 mb-1">Bankers/Branch</label>
+                            <input type="text" name="bankers_branch" placeholder="e.g. First Bank, Molete Branch" required
+                                   class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                        </div>
+                        {% endif %}
+                        {% if needs_application_fee %}
+                        <div>
+                            <label class="block text-sm font-medium text-brand-800 mb-1">Application &amp; Development Fee (₦)</label>
+                            <input type="number" step="0.01" min="0" name="application_fee" required
+                                   class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                        </div>
+                        {% endif %}
+                        {% if needs_starting_contribution %}
+                        <div>
+                            <label class="block text-sm font-medium text-brand-800 mb-1">Starting Contribution (₦)</label>
+                            <input type="number" step="0.01" min="0" name="starting_contribution" required
+                                   class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                            <p class="text-xs text-brand-700/60 mt-1">Added to your savings balance on file.</p>
+                        </div>
+                        {% endif %}
+                        {% if needs_deduction_due_date %}
+                        <div>
+                            <label class="block text-sm font-medium text-brand-800 mb-1">Deduction Due Date</label>
+                            <input type="text" name="deduction_due_date" placeholder="e.g. 25th of every month" required
+                                   class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                        </div>
+                        {% endif %}
+                        {% if needs_preferred_deduction_month_year %}
+                        <div>
+                            <label class="block text-sm font-medium text-brand-800 mb-1">Preferred Month of Deduction and Year</label>
+                            <input type="text" name="preferred_deduction_month_year" placeholder="e.g. January 2027" required
+                                   class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if needs_next_of_kin %}
+                <div class="border-t border-brand-100 pt-4">
+                    <p class="text-sm font-semibold text-brand-900 mb-3">Next of Kin</p>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-brand-800 mb-1">Name</label>
+                            <input type="text" name="next_of_kin_name" required
+                                   class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-brand-800 mb-1">Address</label>
+                            <input type="text" name="next_of_kin_address" required
+                                   class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-brand-800 mb-1">Tel</label>
+                            <input type="text" name="next_of_kin_phone" required
+                                   class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if needs_passport or needs_signature or needs_nin %}
+                <div class="border-t border-brand-100 pt-4 space-y-4">
+                    {% if needs_passport %}
+                    <div>
+                        <label class="block text-sm font-medium text-brand-800 mb-1">Passport Photograph</label>
+                        <input type="file" name="passport" accept="image/*" required
+                               class="w-full text-sm text-brand-700 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-brand-50 file:text-brand-800 file:font-medium hover:file:bg-brand-100">
+                    </div>
+                    {% endif %}
+                    {% if needs_signature %}
+                    <div>
+                        <label class="block text-sm font-medium text-brand-800 mb-1">Digital Signature (image)</label>
+                        <input type="file" name="signature" accept="image/*" required
+                               class="w-full text-sm text-brand-700 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-brand-50 file:text-brand-800 file:font-medium hover:file:bg-brand-100">
+                    </div>
+                    {% endif %}
+                    {% if needs_nin %}
+                    <div>
+                        <label class="block text-sm font-medium text-brand-800 mb-1">NIN (National Identification Number) Document</label>
+                        <input type="file" name="nin" accept=".png,.jpg,.jpeg,.webp,.pdf" required
+                               class="w-full text-sm text-brand-700 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-brand-50 file:text-brand-800 file:font-medium hover:file:bg-brand-100">
+                        <p class="text-xs text-brand-700/60 mt-1">Upload a clear photo or scan of your NIN slip or card (image or PDF).</p>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <div class="border-t border-brand-100 pt-4 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-brand-800 mb-1">New Password</label>
+                        <input type="password" name="new_password" required minlength="6"
+                               class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-brand-800 mb-1">Confirm New Password</label>
+                        <input type="password" name="confirm_password" required minlength="6"
+                               class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                    </div>
+                </div>
+
+                <button type="submit"
+                        class="w-full bg-brand-700 hover:bg-brand-800 text-white font-medium py-2.5 rounded-lg transition shadow-sm">
+                    Complete Profile
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

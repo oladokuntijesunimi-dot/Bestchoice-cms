@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Molete CMS{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#EEF5F1', 100: '#D3E7DC', 200: '#A8CFBA', 300: '#7BB697',
+                            400: '#559C77', 500: '#3B825D', 600: '#2C6849', 700: '#1F4E38',
+                            800: '#163A29', 900: '#0F291D',
+                        },
+                        gold: {
+                            50: '#FBF7ED', 100: '#F3E7C8', 200: '#E8D096', 300: '#DBB563',
+                            400: '#CC9E42', 500: '#B3852F', 600: '#936D26', 700: '#74561F',
+                        },
+                        cream: '#F5F6F1',
+                    },
+                    fontFamily: {
+                        display: ['Fraunces', 'serif'],
+                        sans: ['"Public Sans"', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    {% if socketio_needed %}<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>{% endif %}
+    <style>
+        body { font-family: 'Public Sans', system-ui, sans-serif; }
+        h1, h2, h3, .font-display { font-family: 'Fraunces', serif; }
+        :focus-visible { outline: 2px solid #B3852F; outline-offset: 2px; }
+    </style>
+</head>
+<body class="bg-cream min-h-screen text-brand-900">
+
+    <nav class="bg-brand-800 text-white px-4 md:px-8 py-3 flex items-center justify-between shadow-md">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full bg-gold-500 flex items-center justify-center flex-shrink-0">
+                <span class="font-display font-bold text-brand-900 text-sm">BC</span>
+            </div>
+            <div class="leading-tight">
+                <p class="font-display font-semibold text-base">Molete Best Choice</p>
+                <p class="text-brand-200 text-xs hidden sm:block">Multipurpose Co-operative Society</p>
+            </div>
+        </div>
+        {% if current_user.is_authenticated %}
+        <div class="flex items-center gap-3">
+            <span class="text-sm text-brand-200 hidden sm:inline">{{ current_user.full_name }}</span>
+            <a href="{{ url_for('change_password') }}"
+               class="text-sm text-brand-100 hover:text-white border border-brand-600 hover:bg-brand-700 px-3 py-1.5 rounded-md transition">Change Password</a>
+            <a href="{{ url_for('logout') }}"
+               class="text-sm text-brand-100 hover:text-white border border-brand-600 hover:bg-brand-700 px-3 py-1.5 rounded-md transition">Logout</a>
+        </div>
+        {% endif %}
+    </nav>
+
+    <div class="max-w-6xl mx-auto px-4 py-6">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-4 space-y-2">
+                {% for category, message in messages %}
+                    <div class="px-4 py-3 rounded-lg text-sm {{ 'bg-red-50 text-red-800 border border-red-200' if category == 'error' else 'bg-brand-50 text-brand-800 border border-brand-200' }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>
