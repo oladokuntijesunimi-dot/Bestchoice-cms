@@ -257,9 +257,7 @@ def register_routes(app):
             password = request.form.get("password", "")
             user = User.query.filter(
                 (User.username == identifier) |
-                (User.membership_code == identifier) |
-                (User.account_number == identifier) |
-                (db.func.lower(User.full_name) == identifier.lower())
+                (db.func.lower(User.membership_code) == identifier.lower())
             ).first()
 
             if not user or not user.check_password(password):
@@ -866,7 +864,7 @@ def register_routes(app):
                     f"MULTIPURPOSE CO-OPERATIVE SOCIETY LTD has been approved.\n\n"
                     f"Your Membership Code is: {code}\n"
                     f"Your default password is: {current_app_default_password()}\n\n"
-                    f"Please log in to your member portal using your full name (or membership code) and "
+                    f"Please log in to your member portal using your Membership Code and "
                     f"this default password. You'll be asked to set your own new password when you log in.\n\n"
                     f"Regards,\nBest Choice Multipurpose Cooperative Society"
                 ),
