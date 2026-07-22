@@ -1,4 +1,6 @@
 import os
+import io
+import mimetypes
 import secrets
 import string
 from datetime import datetime
@@ -17,7 +19,7 @@ from models import (
     LoanType, LoanTypeOption, LoanGuarantor, generate_membership_code
 )
 from utils import (
-    save_upload, delete_upload, upload_full_path, build_member_profile_pdf,
+    save_upload, delete_upload, get_upload_bytes, build_member_profile_pdf,
     build_members_excel, build_members_csv_minimal, build_gift_preferences_excel, parse_bulk_import_file, send_email,
     build_member_brief_pdf, build_members_brief_pdf_combined,
     ALLOWED_RECEIPT_EXTENSIONS
@@ -38,10 +40,6 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     app.config["MAX_UPLOAD_MB"] = float(os.environ.get("MAX_UPLOAD_MB", 5))
-    app.config["UPLOAD_ROOT"] = os.environ.get(
-        "UPLOAD_ROOT", os.path.join(app.instance_path, "uploads")
-    )
-    os.makedirs(app.config["UPLOAD_ROOT"], exist_ok=True)
     os.makedirs(app.instance_path, exist_ok=True)
 
     app.config["DEFAULT_MEMBER_PASSWORD"] = os.environ.get("DEFAULT_MEMBER_PASSWORD", "Molete2026")
@@ -538,10 +536,12 @@ def register_routes(app):
         }[kind]
         if not rel_path:
             abort(404)
-        full_path = upload_full_path(rel_path)
-        if not os.path.exists(full_path):
+        file_bytes = get_upload_bytes(rel_path)
+        if file_bytes is None:
             abort(404)
-        return send_file(full_path)
+        mimetype = mimetypes.guess_type(rel_path)[0] or "application/octet-stream"
+        return send_file(io.BytesIO(file_bytes), mimetype=mimetype,
+                          download_name=rel_path.rsplit("/", 1)[-1])
 
     @app.route("/secure-file/loan-receipt/<int:loan_id>")
     @login_required
@@ -553,10 +553,12 @@ def register_routes(app):
             abort(403)
         if not loan.receipt_path:
             abort(404)
-        full_path = upload_full_path(loan.receipt_path)
-        if not os.path.exists(full_path):
+        file_bytes = get_upload_bytes(loan.receipt_path)
+        if file_bytes is None:
             abort(404)
-        return send_file(full_path)
+        mimetype = mimetypes.guess_type(loan.receipt_path)[0] or "application/octet-stream"
+        return send_file(io.BytesIO(file_bytes), mimetype=mimetype,
+                          download_name=loan.receipt_path.rsplit("/", 1)[-1])
 
     # =====================================================================
     # MEMBER ROUTES
@@ -1034,6 +1036,17 @@ def register_routes(app):
         user = db.session.get(User, user_id) or abort(404)
         if user.is_admin:
             flash("Cannot delete an admin account.", "error")
+            return redirect(url_for("admin_dashboard"))
+        active_guarantor_loans = [
+            gs.loan for gs in user.guarantor_slots
+            if gs.loan and gs.loan.status in ("Pending", "Approved")
+        ]
+        if active_guarantor_loans:
+            names = ", ".join(sorted({l.member.full_name for l in active_guarantor_loans}))
+            flash(
+                f"Cannot delete {user.full_name}: they are a guarantor on an active loan "
+                f"application for {names}. Resolve or delete that loan first.", "error"
+            )
             return redirect(url_for("admin_dashboard"))
         delete_upload(user.passport_path)
         delete_upload(user.signature_path)
