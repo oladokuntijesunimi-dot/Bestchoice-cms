@@ -58,11 +58,44 @@ def _max_upload_bytes():
     return int(mb * 1024 * 1024)
 
 
+_CONTENT_TYPES = {
+    "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+    "webp": "image/webp", "pdf": "application/pdf",
+}
+
+_supabase_client_singleton = None
+
+
+def _supabase_client():
+    """
+    Lazily build (and cache per-process) the Supabase client used for file storage.
+    Uses the service role key so the server can read/write regardless of bucket
+    policies — the bucket itself should be PRIVATE; access to files is gated by
+    our own @login_required / admin-only routes, not by public Supabase URLs.
+    """
+    global _supabase_client_singleton
+    if _supabase_client_singleton is None:
+        from supabase import create_client
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_SERVICE_KEY")
+        if not url or not key:
+            raise RuntimeError(
+                "SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in the environment "
+                "to upload, read, or delete member files."
+            )
+        _supabase_client_singleton = create_client(url, key)
+    return _supabase_client_singleton
+
+
+def _supabase_bucket():
+    return os.environ.get("SUPABASE_BUCKET", "cms-uploads")
+
+
 def save_upload(file_storage, subfolder, allowed_extensions=None):
     """
-    Save an uploaded file OUTSIDE static/, inside instance/uploads/<subfolder>/.
+    Upload a file to Supabase Storage, at <subfolder>/<uuid>_<filename>.
     Returns the relative path stored in the DB (subfolder/filename), or None.
-    Raises ValueError on invalid file / oversize.
+    Raises ValueError on invalid file / oversize / upload failure.
     """
     if not file_storage or file_storage.filename == "":
         return None
@@ -81,33 +114,46 @@ def save_upload(file_storage, subfolder, allowed_extensions=None):
         )
 
     unique_name = f"{uuid.uuid4().hex}_{filename}"
-    upload_root = current_app.config["UPLOAD_ROOT"]
-    target_dir = os.path.join(upload_root, subfolder)
-    os.makedirs(target_dir, exist_ok=True)
-    full_path = os.path.join(target_dir, unique_name)
-    file_storage.save(full_path)
-    # Always store with forward slashes in the DB, regardless of host OS, so paths
-    # saved on Windows during development resolve correctly on Linux in production.
-    return f"{subfolder}/{unique_name}"
+    relative_path = f"{subfolder}/{unique_name}"
+    file_bytes = file_storage.read()
+    ext = filename.rsplit(".", 1)[-1].lower()
+    content_type = _CONTENT_TYPES.get(ext, "application/octet-stream")
+
+    try:
+        _supabase_client().storage.from_(_supabase_bucket()).upload(
+            relative_path, file_bytes, {"content-type": content_type}
+        )
+    except Exception as e:
+        raise ValueError(f"Upload to storage failed: {e}")
+
+    return relative_path
 
 
-def upload_full_path(relative_path):
+def get_upload_bytes(relative_path):
+    """
+    Download a previously uploaded file's raw bytes from Supabase Storage.
+    Returns None if the path is empty, or the file can't be found/downloaded
+    (e.g. an old record from before the Supabase migration, or a transient error).
+    """
+    if not relative_path:
+        return None
     # Normalize in case older DB records were saved with a Windows-style backslash
-    # (os.path.join on Windows produces "signatures\file.jpg", which Linux treats
-    # as a single literal filename rather than a folder separator).
+    # (os.path.join on Windows produces "signatures\file.jpg" rather than "signatures/file.jpg").
     normalized = relative_path.replace("\\", "/")
-    return os.path.join(current_app.config["UPLOAD_ROOT"], *normalized.split("/"))
+    try:
+        return _supabase_client().storage.from_(_supabase_bucket()).download(normalized)
+    except Exception:
+        return None
 
 
 def delete_upload(relative_path):
     if not relative_path:
         return
-    full_path = upload_full_path(relative_path)
-    if os.path.exists(full_path):
-        try:
-            os.remove(full_path)
-        except OSError:
-            pass
+    normalized = relative_path.replace("\\", "/")
+    try:
+        _supabase_client().storage.from_(_supabase_bucket()).remove([normalized])
+    except Exception:
+        pass
 
 
 def _wrap_text(text, font_name, font_size, max_width, canvas_obj):
@@ -182,7 +228,9 @@ def build_member_profile_pdf(user):
     c.rect(passport_x, passport_y, passport_w, passport_h)
     if user.passport_path:
         try:
-            c.drawImage(upload_full_path(user.passport_path), passport_x, passport_y,
+            from reportlab.lib.utils import ImageReader
+            passport_bytes = get_upload_bytes(user.passport_path)
+            c.drawImage(ImageReader(io.BytesIO(passport_bytes)), passport_x, passport_y,
                         width=passport_w, height=passport_h, preserveAspectRatio=True, anchor='c')
         except Exception:
             c.drawCentredString(passport_x + passport_w / 2, passport_y + passport_h / 2, "Affix Passport")
@@ -268,7 +316,9 @@ def build_member_profile_pdf(user):
     sig_w, sig_h = 55 * mm, 18 * mm
     if user.signature_path:
         try:
-            c.drawImage(upload_full_path(user.signature_path), margin, y, width=sig_w, height=sig_h,
+            from reportlab.lib.utils import ImageReader
+            sig_bytes = get_upload_bytes(user.signature_path)
+            c.drawImage(ImageReader(io.BytesIO(sig_bytes)), margin, y, width=sig_w, height=sig_h,
                         preserveAspectRatio=True, anchor='c')
         except Exception:
             pass
@@ -361,7 +411,9 @@ def build_member_profile_pdf(user):
     sig_w, sig_h = 55 * mm, 18 * mm
     if user.signature_path:
         try:
-            c.drawImage(upload_full_path(user.signature_path), margin, y, width=sig_w, height=sig_h,
+            from reportlab.lib.utils import ImageReader
+            sig_bytes = get_upload_bytes(user.signature_path)
+            c.drawImage(ImageReader(io.BytesIO(sig_bytes)), margin, y, width=sig_w, height=sig_h,
                         preserveAspectRatio=True, anchor='c')
         except Exception:
             pass
@@ -429,15 +481,19 @@ def build_member_brief_pdf(user):
     c.setLineWidth(0.6)
     c.rect(margin, sig_box_y, sig_box_w, sig_box_h)
     if user.signature_path:
-        full_path = upload_full_path(user.signature_path)
-        if os.path.exists(full_path):
+        sig_bytes = get_upload_bytes(user.signature_path)
+        if sig_bytes:
             try:
-                c.drawImage(full_path, margin + 2 * mm, sig_box_y + 2 * mm,
+                from reportlab.lib.utils import ImageReader
+                c.drawImage(ImageReader(io.BytesIO(sig_bytes)), margin + 2 * mm, sig_box_y + 2 * mm,
                             width=sig_box_w - 4 * mm, height=sig_box_h - 4 * mm,
                             preserveAspectRatio=True, anchor='c', mask='auto')
             except Exception:
                 c.setFont("Helvetica-Oblique", 8)
                 c.drawCentredString(margin + sig_box_w / 2, sig_box_y + sig_box_h / 2, "Signature unavailable")
+        else:
+            c.setFont("Helvetica-Oblique", 8)
+            c.drawCentredString(margin + sig_box_w / 2, sig_box_y + sig_box_h / 2, "Signature unavailable")
     else:
         c.setFont("Helvetica-Oblique", 8)
         c.drawCentredString(margin + sig_box_w / 2, sig_box_y + sig_box_h / 2, "No signature on file")
@@ -502,10 +558,11 @@ def build_members_brief_pdf_combined(users):
         c.setLineWidth(0.4)
         c.rect(sig_x, sig_y, sig_w, sig_h)
         if u.signature_path:
-            full_path = upload_full_path(u.signature_path)
-            if os.path.exists(full_path):
+            sig_bytes = get_upload_bytes(u.signature_path)
+            if sig_bytes:
                 try:
-                    c.drawImage(full_path, sig_x + 1 * mm, sig_y + 1 * mm,
+                    from reportlab.lib.utils import ImageReader
+                    c.drawImage(ImageReader(io.BytesIO(sig_bytes)), sig_x + 1 * mm, sig_y + 1 * mm,
                                 width=sig_w - 2 * mm, height=sig_h - 2 * mm,
                                 preserveAspectRatio=True, anchor='c', mask='auto')
                 except Exception:
