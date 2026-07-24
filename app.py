@@ -949,6 +949,9 @@ def register_routes(app):
         except ValueError as e:
             flash(str(e), "error")
             return redirect(url_for("admin_dashboard"))
+        except Exception as e:
+            flash(f"Could not read that file: {e}. Make sure it's a valid .csv or .xlsx export.", "error")
+            return redirect(url_for("admin_dashboard"))
 
         # Hash the shared default password once — hashing is deliberately slow (scrypt/pbkdf2),
         # so re-hashing it per row is what makes large imports crawl.
@@ -993,8 +996,14 @@ def register_routes(app):
             existing_names.add(name_lower)
             created += 1
 
-        db.session.bulk_save_objects(new_users)
-        db.session.commit()
+        try:
+            db.session.bulk_save_objects(new_users)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Bulk import failed while saving to the database: {e}. No members were added — "
+                  f"check for duplicate membership codes/account numbers in the file and try again.", "error")
+            return redirect(url_for("admin_dashboard"))
         flash(f"Bulk import complete: {created} member(s) created, {skipped} skipped (duplicates/invalid).", "success")
         return redirect(url_for("admin_dashboard"))
 
