@@ -38,6 +38,16 @@ def create_app():
         db_url = db_url.replace("postgres://", "postgresql://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    # pool_pre_ping: test each pooled connection with a cheap query before using it, and
+    # transparently replace it if it's gone stale. Without this, a connection that Supabase's
+    # pooler silently closed in the background gets reused as-is and fails with a confusing
+    # "SSL error: decryption failed or bad record mac" instead of just being refreshed.
+    # pool_recycle: proactively discard connections older than 5 minutes, before the pooler's
+    # own idle timeout has a chance to kill them out from under us.
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+    }
 
     app.config["MAX_UPLOAD_MB"] = float(os.environ.get("MAX_UPLOAD_MB", 5))
     os.makedirs(app.instance_path, exist_ok=True)
