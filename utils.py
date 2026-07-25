@@ -63,39 +63,53 @@ _CONTENT_TYPES = {
     "webp": "image/webp", "pdf": "application/pdf",
 }
 
-_supabase_client_singleton = None
+
+def _supabase_url():
+    url = os.environ.get("SUPABASE_URL")
+    if not url:
+        raise RuntimeError(
+            "SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in the environment "
+            "to upload, read, or delete member files."
+        )
+    return url.rstrip("/")
 
 
-def _supabase_client():
-    """
-    Lazily build (and cache per-process) the Supabase client used for file storage.
-    Uses the service role key so the server can read/write regardless of bucket
-    policies — the bucket itself should be PRIVATE; access to files is gated by
-    our own @login_required / admin-only routes, not by public Supabase URLs.
-    """
-    global _supabase_client_singleton
-    if _supabase_client_singleton is None:
-        from supabase import create_client
-        url = os.environ.get("SUPABASE_URL")
-        key = os.environ.get("SUPABASE_SERVICE_KEY")
-        if not url or not key:
-            raise RuntimeError(
-                "SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in the environment "
-                "to upload, read, or delete member files."
-            )
-        _supabase_client_singleton = create_client(url, key)
-    return _supabase_client_singleton
+def _supabase_headers(content_type=None):
+    key = os.environ.get("SUPABASE_SERVICE_KEY")
+    if not key:
+        raise RuntimeError(
+            "SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in the environment "
+            "to upload, read, or delete member files."
+        )
+    headers = {"Authorization": f"Bearer {key}", "apikey": key}
+    if content_type:
+        headers["Content-Type"] = content_type
+    return headers
 
 
 def _supabase_bucket():
     return os.environ.get("SUPABASE_BUCKET", "cms-uploads")
 
 
+def _supabase_object_url(relative_path):
+    # requests handles URL-encoding of the path via the `url` param on request(),
+    # but we quote explicitly ourselves to be safe with any unusual characters.
+    from urllib.parse import quote
+    quoted = quote(relative_path, safe="/")
+    return f"{_supabase_url()}/storage/v1/object/{_supabase_bucket()}/{quoted}"
+
+
 def save_upload(file_storage, subfolder, allowed_extensions=None):
     """
-    Upload a file to Supabase Storage, at <subfolder>/<uuid>_<filename>.
-    Returns the relative path stored in the DB (subfolder/filename), or None.
-    Raises ValueError on invalid file / oversize / upload failure.
+    Upload a file to Supabase Storage (via its plain HTTP REST API — see note below),
+    at <subfolder>/<uuid>_<filename>. Returns the relative path stored in the DB
+    (subfolder/filename), or None. Raises ValueError on invalid file / oversize / upload failure.
+
+    Talks to Supabase's REST API directly with `requests` rather than the `supabase`
+    PyPI package's storage client. The package's client uses httpx/h11 under the hood,
+    which hit a "LocalProtocolError: illegal request line" bug in production on Render —
+    a low-level HTTP/1.1 request-construction issue unrelated to our code. `requests`
+    (via urllib3) doesn't share that code path, so this sidesteps the bug entirely.
     """
     if not file_storage or file_storage.filename == "":
         return None
@@ -120,9 +134,14 @@ def save_upload(file_storage, subfolder, allowed_extensions=None):
     content_type = _CONTENT_TYPES.get(ext, "application/octet-stream")
 
     try:
-        _supabase_client().storage.from_(_supabase_bucket()).upload(
-            relative_path, file_bytes, {"content-type": content_type}
+        import requests
+        resp = requests.post(
+            _supabase_object_url(relative_path),
+            headers=_supabase_headers(content_type),
+            data=file_bytes,
+            timeout=30,
         )
+        resp.raise_for_status()
     except Exception as e:
         raise ValueError(f"Upload to storage failed: {e}")
 
@@ -141,7 +160,11 @@ def get_upload_bytes(relative_path):
     # (os.path.join on Windows produces "signatures\file.jpg" rather than "signatures/file.jpg").
     normalized = relative_path.replace("\\", "/")
     try:
-        return _supabase_client().storage.from_(_supabase_bucket()).download(normalized)
+        import requests
+        resp = requests.get(_supabase_object_url(normalized), headers=_supabase_headers(), timeout=30)
+        if resp.status_code != 200:
+            return None
+        return resp.content
     except Exception:
         return None
 
@@ -151,7 +174,8 @@ def delete_upload(relative_path):
         return
     normalized = relative_path.replace("\\", "/")
     try:
-        _supabase_client().storage.from_(_supabase_bucket()).remove([normalized])
+        import requests
+        requests.delete(_supabase_object_url(normalized), headers=_supabase_headers(), timeout=30)
     except Exception:
         pass
 
