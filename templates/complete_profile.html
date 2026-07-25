@@ -18,6 +18,13 @@
                            class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
                     <p class="text-xs text-brand-700/60 mt-1">Correct this if it was entered wrong during registration.</p>
                 </div>
+                <div>
+                    <label class="block text-sm font-medium text-brand-800 mb-1">Your Current Savings Balance on Record (₦)</label>
+                    <input type="number" name="savings_balance" step="0.01" min="0" required
+                           value="{{ '%.2f'|format(current_user.savings_balance or 0) }}"
+                           class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                    <p class="text-xs text-brand-700/60 mt-1">This determines the loan amounts you're eligible for — enter your actual savings balance with the cooperative.</p>
+                </div>
                 {% if needs_work_position %}
                 <div>
                     <label class="block text-sm font-medium text-brand-800 mb-1">Work Position</label>
@@ -27,7 +34,7 @@
                 {% endif %}
                 {% if needs_office_number %}
                 <div>
-                    <label class="block text-sm font-medium text-brand-800 mb-1">Office Number</label>
+                    <label class="block text-sm font-medium text-brand-800 mb-1">Staff Number</label>
                     <input type="text" name="office_number" required
                            class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
                 </div>
@@ -92,6 +99,7 @@
                             <label class="block text-sm font-medium text-brand-800 mb-1">Application &amp; Development Fee (₦)</label>
                             <input type="number" step="0.01" min="0" name="application_fee" required
                                    class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                            <p class="text-xs text-brand-700/60 mt-1">For your records only — this does not affect your loan eligibility.</p>
                         </div>
                         {% endif %}
                         {% if needs_starting_contribution %}
@@ -99,7 +107,7 @@
                             <label class="block text-sm font-medium text-brand-800 mb-1">Starting Contribution (₦)</label>
                             <input type="number" step="0.01" min="0" name="starting_contribution" required
                                    class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
-                            <p class="text-xs text-brand-700/60 mt-1">Added to your savings balance on file.</p>
+                            <p class="text-xs text-brand-700/60 mt-1">For your records only — this does not affect your loan eligibility. Your savings balance for loan purposes is set separately above.</p>
                         </div>
                         {% endif %}
                         {% if needs_deduction_due_date %}
