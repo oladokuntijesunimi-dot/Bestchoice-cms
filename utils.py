@@ -309,7 +309,7 @@ def build_member_profile_pdf(user):
     field_line("Department/Section:", user.work_position, margin, y, label_width=34 * mm)
     y -= 8 * mm
     field_line("Tel.:", user.phone_number, margin, y, label_width=12 * mm, line_width=50 * mm)
-    field_line("Office No.:", user.office_number, margin + 68 * mm, y, label_width=22 * mm, line_width=content_width - 90 * mm)
+    field_line("Staff No.:", user.office_number, margin + 68 * mm, y, label_width=22 * mm, line_width=content_width - 90 * mm)
     y -= 8 * mm
     field_line("Bankers/Branch:", user.bankers_branch, margin, y, label_width=30 * mm, line_width=50 * mm)
     field_line("A/C No.:", user.account_number, margin + 85 * mm, y, label_width=18 * mm, line_width=content_width - 103 * mm)
@@ -404,7 +404,7 @@ def build_member_profile_pdf(user):
     intro_lines = [
         f"From: {user.full_name}",
         f"Name: {user.full_name}",
-        f"Staff no.: {user.account_number or '________________'}",
+        f"Staff no.: {user.office_number or '________________'}",
         "To: Molete (Ibadan) Best Choice Multipurpose Cooperative Society Limited",
         "",
         "Kindly take this as an instruction to debit my salary account number __________________________ on a monthly basis as itemized below:",
@@ -608,7 +608,7 @@ def build_members_csv_minimal(users):
 
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["Full Name", "Membership Code", "Account Number", "Office Number", "Signature Present", "Signature File"])
+    writer.writerow(["Full Name", "Membership Code", "Account Number", "Staff Number", "Signature Present", "Signature File"])
     for u in users:
         writer.writerow([
             u.full_name,
@@ -637,7 +637,7 @@ def build_members_excel(users, brief_pdf_url_func=None):
         "Full Name": u.full_name,
         "Account Number": u.account_number,
         "Phone Number": u.phone_number,
-        "Office Number": u.office_number,
+        "Staff Number": u.office_number,
         "Email": u.email,
         "Work Position": u.work_position,
         "Employer": u.employer,
