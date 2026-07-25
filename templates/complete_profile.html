@@ -12,6 +12,12 @@
             </p>
 
             <form method="POST" enctype="multipart/form-data" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-brand-800 mb-1">Account Number</label>
+                    <input type="text" name="account_number" required value="{{ current_user.account_number }}"
+                           class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                    <p class="text-xs text-brand-700/60 mt-1">Correct this if it was entered wrong during registration.</p>
+                </div>
                 {% if needs_work_position %}
                 <div>
                     <label class="block text-sm font-medium text-brand-800 mb-1">Work Position</label>
