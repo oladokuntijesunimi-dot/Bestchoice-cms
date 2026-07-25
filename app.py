@@ -389,6 +389,16 @@ def register_routes(app):
                     return render_template("complete_profile.html", **template_kwargs)
                 current_user.account_number = new_account_number
 
+            savings_raw = request.form.get("savings_balance", "").strip()
+            try:
+                savings_value = float(savings_raw)
+                if savings_value < 0:
+                    raise ValueError
+            except ValueError:
+                flash("Please enter a valid current savings balance (0 or more).", "error")
+                return render_template("complete_profile.html", **template_kwargs)
+            current_user.savings_balance = savings_value
+
             if needs_work_position:
                 work_position = request.form.get("work_position", "").strip()
                 if not work_position:
@@ -399,7 +409,7 @@ def register_routes(app):
             if needs_office_number:
                 office_number = request.form.get("office_number", "").strip()
                 if not office_number:
-                    flash("Office number is required.", "error")
+                    flash("Staff number is required.", "error")
                     return render_template("complete_profile.html", **template_kwargs)
                 current_user.office_number = office_number
 
@@ -452,7 +462,6 @@ def register_routes(app):
                     flash("Please enter a valid starting contribution amount.", "error")
                     return render_template("complete_profile.html", **template_kwargs)
                 current_user.starting_contribution = starting_contribution
-                current_user.savings_balance = (current_user.savings_balance or 0.0) + starting_contribution
 
             if needs_deduction_due_date:
                 deduction_due_date = request.form.get("deduction_due_date", "").strip()
@@ -1393,4 +1402,4 @@ def _emit_vote_update(position_id):
 app = create_app()
 
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=False)
+    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=True)
