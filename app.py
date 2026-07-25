@@ -376,6 +376,19 @@ def register_routes(app):
             new_password = request.form.get("new_password", "")
             confirm = request.form.get("confirm_password", "")
 
+            new_account_number = request.form.get("account_number", "").strip()
+            if not new_account_number:
+                flash("Account number is required.", "error")
+                return render_template("complete_profile.html", **template_kwargs)
+            if new_account_number != current_user.account_number:
+                clash = User.query.filter(
+                    User.account_number == new_account_number, User.id != current_user.id
+                ).first()
+                if clash:
+                    flash("That account number is already in use by another member.", "error")
+                    return render_template("complete_profile.html", **template_kwargs)
+                current_user.account_number = new_account_number
+
             if needs_work_position:
                 work_position = request.form.get("work_position", "").strip()
                 if not work_position:
@@ -1380,4 +1393,4 @@ def _emit_vote_update(position_id):
 app = create_app()
 
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=False)
+    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=True)
