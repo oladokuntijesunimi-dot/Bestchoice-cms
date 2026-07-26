@@ -644,6 +644,21 @@ def register_routes(app):
     def apply_loan():
         if current_user.is_admin:
             abort(403)
+
+        claimed_raw = request.form.get("claimed_savings_balance", "").strip()
+        try:
+            claimed_value = float(claimed_raw)
+            if claimed_value < 0:
+                raise ValueError
+        except ValueError:
+            flash("Please enter a valid current savings balance (0 or more).", "error")
+            return redirect(url_for("member_dashboard"))
+        # Sent to the admin for review alongside this application — does not affect
+        # eligibility here or anywhere else. Only an admin can change the official
+        # savings_balance that loan-type max amounts actually use.
+        current_user.claimed_savings_balance = claimed_value
+        db.session.commit()
+
         try:
             amount = float(request.form.get("amount", 0))
         except ValueError:
@@ -1426,4 +1441,4 @@ def _emit_vote_update(position_id):
 app = create_app()
 
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=False)
+    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=True)
