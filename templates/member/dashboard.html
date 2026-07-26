@@ -46,7 +46,6 @@
     <!-- LOAN PANEL -->
     <div id="tab-loan" class="tab-panel bg-white rounded-xl shadow p-6">
         <h2 class="text-lg font-semibold mb-1">Apply for a Loan</h2>
-        <p class="text-sm text-brand-700/70 mb-4">Your current savings balance on record: <strong>₦{{ "%.2f"|format(current_user.savings_balance) }}</strong></p>
 
         {% if not loan_types %}
             <p class="text-brand-700/70 mb-6">No loan types are currently open for applications. Please check back later.</p>
@@ -76,6 +75,14 @@
 
         <form method="POST" action="{{ url_for('apply_loan') }}" id="loan-form" enctype="multipart/form-data" class="border-t pt-4">
             <input type="hidden" name="loan_type_id" id="loan-form-type-id">
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-brand-800 mb-1">Your Current Savings Balance on Record (₦)</label>
+                <input type="number" name="claimed_savings_balance" step="0.01" min="0" required
+                       value="{{ '%.2f'|format(current_user.claimed_savings_balance if current_user.claimed_savings_balance is not none else current_user.savings_balance) }}"
+                       class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
+                <p class="text-xs text-brand-700/60 mt-1">This is sent to the admin for review alongside your loan application — it does not change your loan eligibility on its own.</p>
+            </div>
             <div class="flex flex-wrap gap-3 mb-3">
                 <select name="option_id" id="loan-form-option" required class="border border-brand-200 rounded-lg px-3 py-2 flex-1 min-w-[220px]">
                     <option value="">Select a loan type above first</option>
@@ -107,7 +114,7 @@
 
             <div class="mb-4">
                 <label class="block text-sm font-medium text-brand-800 mb-1">
-                    Signed Loan Application Form Receipt <span class="text-red-500">*</span>
+                    Loan Application Fee Receipt <span class="text-red-500">*</span>
                 </label>
                 <input type="file" name="application_receipt" accept=".png,.jpg,.jpeg,.webp,.pdf" required
                        class="w-full text-sm border border-brand-200 rounded-lg px-3 py-2">
