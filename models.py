@@ -47,6 +47,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(150), nullable=True)
     work_position = db.Column(db.String(150), nullable=True)
     savings_balance = db.Column(db.Float, default=0.0, nullable=False)
+    claimed_savings_balance = db.Column(db.Float, nullable=True)
     passport_path = db.Column(db.String(255), nullable=True)
     signature_path = db.Column(db.String(255), nullable=True)
     nin_path = db.Column(db.String(255), nullable=True)  # scanned/photographed NIN slip or card
@@ -163,7 +164,9 @@ class Loan(db.Model):
 
     @property
     def all_guarantors_accepted(self):
-        return len(self.guarantors) > 0 and all(g.status == "Accepted" for g in self.guarantors)
+        # Vacuously true for loan types that don't require guarantors (empty list) —
+        # only loans that actually have guarantor slots need every one of them to accept.
+        return all(g.status == "Accepted" for g in self.guarantors)
 
     @property
     def any_guarantor_declined(self):
