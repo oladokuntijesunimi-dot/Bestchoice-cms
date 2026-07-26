@@ -415,11 +415,8 @@ def register_routes(app):
             except ValueError:
                 flash("Please enter a valid current savings balance (0 or more).", "error")
                 return render_template("complete_profile.html", **template_kwargs)
-            # This is what the member CLAIMS their savings balance is — it's shown to the
-            # admin for consideration and does NOT touch the official savings_balance that
-            # actually drives loan eligibility. Only an admin can change that, from the
-            # admin dashboard's edit-member panel, after reviewing this claimed figure.
             current_user.claimed_savings_balance = savings_value
+            current_user.savings_balance = savings_value
 
             if needs_work_position:
                 work_position = request.form.get("work_position", "").strip()
@@ -653,10 +650,8 @@ def register_routes(app):
         except ValueError:
             flash("Please enter a valid current savings balance (0 or more).", "error")
             return redirect(url_for("member_dashboard"))
-        # Sent to the admin for review alongside this application — does not affect
-        # eligibility here or anywhere else. Only an admin can change the official
-        # savings_balance that loan-type max amounts actually use.
         current_user.claimed_savings_balance = claimed_value
+        current_user.savings_balance = claimed_value
         db.session.commit()
 
         try:
