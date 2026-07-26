@@ -134,7 +134,7 @@
                         {% if m.nin_path %}
                         <a href="{{ url_for('secure_file', user_id=m.id, kind='nin') }}" target="_blank" class="text-brand-700 underline text-xs">NIN</a>
                         {% endif %}
-                        <button onclick="openEditModal({{ m.id }}, '{{ m.full_name|e }}', '{{ m.account_number|e }}', '{{ (m.work_position or '')|e }}', {{ m.savings_balance }}, '{{ (m.email or '')|e }}', '{{ (m.phone_number or '')|e }}', '{{ (m.office_number or '')|e }}')"
+                        <button onclick="openEditModal({{ m.id }}, '{{ m.full_name|e }}', '{{ m.account_number|e }}', '{{ (m.work_position or '')|e }}', {{ m.savings_balance }}, '{{ (m.email or '')|e }}', '{{ (m.phone_number or '')|e }}', '{{ (m.office_number or '')|e }}', {{ m.claimed_savings_balance if m.claimed_savings_balance is not none else 'null' }})"
                                 class="text-brand-700 underline text-xs">Edit</button>
                         <form id="reset-password-form-{{ m.id }}" action="{{ url_for('admin_reset_member_password', user_id=m.id) }}" method="POST" class="hidden"></form>
                         <button type="submit" form="reset-password-form-{{ m.id }}"
@@ -506,7 +506,8 @@
             <label class="block text-sm font-medium text-brand-800 mb-1">Email</label>
             <input type="email" name="email" id="edit-email" placeholder="you@example.com" class="w-full border border-brand-200 rounded-lg px-3 py-2 mb-3 text-sm">
             <label class="block text-sm font-medium text-brand-800 mb-1">Savings Balance (₦)</label>
-            <input type="number" step="0.01" name="savings_balance" id="edit-savings" class="w-full border border-brand-200 rounded-lg px-3 py-2 mb-4 text-sm">
+            <input type="number" step="0.01" name="savings_balance" id="edit-savings" class="w-full border border-brand-200 rounded-lg px-3 py-2 text-sm">
+            <p id="edit-claimed-savings" class="text-xs text-brand-700/60 mt-1 mb-4"></p>
             <div class="flex justify-end gap-2">
                 <button type="button" onclick="document.getElementById('edit-modal').classList.add('hidden')"
                         class="px-4 py-2 rounded-lg text-sm border">Cancel</button>
@@ -567,7 +568,7 @@ function showTab(name, btn) {
     btn.classList.add('active');
 }
 
-function openEditModal(id, name, accountNumber, position, savings, email, phone, office) {
+function openEditModal(id, name, accountNumber, position, savings, email, phone, office, claimedSavings) {
     document.getElementById('edit-form').action = '/admin/member/' + id + '/edit';
     document.getElementById('edit-full-name').value = name;
     document.getElementById('edit-account').value = accountNumber;
@@ -576,6 +577,12 @@ function openEditModal(id, name, accountNumber, position, savings, email, phone,
     document.getElementById('edit-position').value = position;
     document.getElementById('edit-savings').value = savings;
     document.getElementById('edit-email').value = email;
+    const claimedEl = document.getElementById('edit-claimed-savings');
+    if (claimedSavings === null || claimedSavings === undefined) {
+        claimedEl.textContent = 'Member has not submitted a figure yet.';
+    } else {
+        claimedEl.textContent = 'Member claims: ₦' + Number(claimedSavings).toFixed(2) + ' — review and update the balance above if you want to act on it.';
+    }
     document.getElementById('edit-modal').classList.remove('hidden');
 }
 
