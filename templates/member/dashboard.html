@@ -65,7 +65,7 @@
                         </p>
                         <p class="text-sm text-brand-700/70 mt-0.5">{{ lt.clause }}</p>
                         <p class="text-sm text-brand-700 mt-1">
-                            Max for you right now: <strong>₦{{ "%.2f"|format(lt.max_amount_for(current_user)) }}</strong>
+                            Max for you right now: <strong id="max-amount-{{ lt.id }}">₦{{ "%.2f"|format(lt.max_amount_for(current_user)) }}</strong>
                         </p>
                     </div>
                 </div>
@@ -78,8 +78,9 @@
 
             <div class="mb-4">
                 <label class="block text-sm font-medium text-brand-800 mb-1">Your Current Savings Balance on Record (₦)</label>
-                <input type="number" name="claimed_savings_balance" step="0.01" min="0" required
+                <input type="number" name="claimed_savings_balance" id="claimed-savings-input" step="0.01" min="0" required
                        value="{{ '%.2f'|format(current_user.claimed_savings_balance if current_user.claimed_savings_balance is not none else current_user.savings_balance) }}"
+                       oninput="recalculateMaxAmounts()"
                        class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
                 <p class="text-xs text-brand-700/60 mt-1">This determines the loan amounts you're eligible for — update it here if your savings balance has changed.</p>
             </div>
@@ -325,7 +326,24 @@ const loanTypeNames = {
     {{ lt.id }}: "{{ lt.name|e }}",
     {% endfor %}
 };
+const loanTypeBasis = {
+    {% for lt in loan_types %}
+    {{ lt.id }}: {basis: "{{ lt.basis }}", multiplier: {{ lt.multiplier or 0 }}, fixedMax: {{ lt.fixed_max_amount or 0 }}},
+    {% endfor %}
+};
 const GUARANTOR_LOAN_TYPE_NAME = "Personal Loan";
+
+function recalculateMaxAmounts() {
+    const savingsInput = document.getElementById('claimed-savings-input');
+    const savings = parseFloat(savingsInput.value) || 0;
+    Object.keys(loanTypeBasis).forEach(loanTypeId => {
+        const cfg = loanTypeBasis[loanTypeId];
+        const max = cfg.basis === "savings_multiple" ? cfg.multiplier * savings : cfg.fixedMax;
+        const el = document.getElementById('max-amount-' + loanTypeId);
+        if (el) el.textContent = '₦' + max.toLocaleString('en-NG', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    });
+}
+document.addEventListener('DOMContentLoaded', recalculateMaxAmounts);
 
 function selectLoanType(loanTypeId) {
     document.getElementById('loan-form-type-id').value = loanTypeId;
