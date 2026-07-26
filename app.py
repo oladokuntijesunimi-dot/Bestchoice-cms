@@ -66,6 +66,7 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        _run_lightweight_migrations()
         _seed_admin(app)
         _seed_loan_types()
         if not ElectionSettings.query.first():
@@ -77,6 +78,23 @@ def create_app():
 
     register_routes(app)
     return app
+
+
+def _run_lightweight_migrations():
+    """
+    db.create_all() only creates tables that don't exist yet — it never adds new
+    columns to a table that's already live in production. This runs a tiny,
+    idempotent check on every boot: for each (table, column) pair below, add the
+    column via ALTER TABLE only if it's actually missing. Safe to run repeatedly,
+    safe on a brand-new database (the column already exists via create_all, so
+    this is a no-op), and doesn't touch or lose any existing data.
+    """
+    from sqlalchemy import inspect, text
+    inspector = inspect(db.engine)
+    existing_columns = {c["name"] for c in inspector.get_columns("user")}
+    if "claimed_savings_balance" not in existing_columns:
+        with db.engine.begin() as conn:
+            conn.execute(text('ALTER TABLE "user" ADD COLUMN claimed_savings_balance FLOAT'))
 
 
 def _seed_loan_types():
@@ -397,7 +415,11 @@ def register_routes(app):
             except ValueError:
                 flash("Please enter a valid current savings balance (0 or more).", "error")
                 return render_template("complete_profile.html", **template_kwargs)
-            current_user.savings_balance = savings_value
+            # This is what the member CLAIMS their savings balance is — it's shown to the
+            # admin for consideration and does NOT touch the official savings_balance that
+            # actually drives loan eligibility. Only an admin can change that, from the
+            # admin dashboard's edit-member panel, after reviewing this claimed figure.
+            current_user.claimed_savings_balance = savings_value
 
             if needs_work_position:
                 work_position = request.form.get("work_position", "").strip()
@@ -642,44 +664,46 @@ def register_routes(app):
             flash("Please provide a valid amount.", "error")
             return redirect(url_for("member_dashboard"))
 
-        # The official loan form requires exactly two guarantors, each vouching for a stated amount.
+        # Guarantors (two, matching the official loan form) are only required for Personal Loan.
+        # Other loan types skip this section entirely.
         guarantor_entries = []
-        for i in (1, 2):
-            code = request.form.get(f"guarantor_code_{i}", "").strip()
-            raw_amount = request.form.get(f"guarantor_amount_{i}", "").strip()
-            if not code or not raw_amount:
-                flash("Both guarantors and their guaranteed amounts are required.", "error")
-                return redirect(url_for("member_dashboard"))
-            try:
-                g_amount = float(raw_amount)
-            except ValueError:
-                flash("Guarantor amounts must be numbers.", "error")
-                return redirect(url_for("member_dashboard"))
-            if g_amount <= 0:
-                flash("Guarantor amounts must be greater than zero.", "error")
+        if loan_type.name == "Personal Loan":
+            for i in (1, 2):
+                code = request.form.get(f"guarantor_code_{i}", "").strip()
+                raw_amount = request.form.get(f"guarantor_amount_{i}", "").strip()
+                if not code or not raw_amount:
+                    flash("Both guarantors and their guaranteed amounts are required.", "error")
+                    return redirect(url_for("member_dashboard"))
+                try:
+                    g_amount = float(raw_amount)
+                except ValueError:
+                    flash("Guarantor amounts must be numbers.", "error")
+                    return redirect(url_for("member_dashboard"))
+                if g_amount <= 0:
+                    flash("Guarantor amounts must be greater than zero.", "error")
+                    return redirect(url_for("member_dashboard"))
+
+                guarantor = User.query.filter_by(membership_code=code).first()
+                if not guarantor or guarantor.role != "Member" or guarantor.account_status != "Active":
+                    flash(f"Guarantor {i} not found. Please enter a valid, active member's membership code.", "error")
+                    return redirect(url_for("member_dashboard"))
+                if guarantor.id == current_user.id:
+                    flash("You cannot be your own guarantor.", "error")
+                    return redirect(url_for("member_dashboard"))
+
+                guarantor_entries.append((guarantor, g_amount))
+
+            if guarantor_entries[0][0].id == guarantor_entries[1][0].id:
+                flash("Please provide two different guarantors.", "error")
                 return redirect(url_for("member_dashboard"))
 
-            guarantor = User.query.filter_by(membership_code=code).first()
-            if not guarantor or guarantor.role != "Member" or guarantor.account_status != "Active":
-                flash(f"Guarantor {i} not found. Please enter a valid, active member's membership code.", "error")
+            total_guaranteed = guarantor_entries[0][1] + guarantor_entries[1][1]
+            if abs(total_guaranteed - amount) > 0.01:
+                flash(
+                    f"The two guaranteed amounts (\u20a6{total_guaranteed:,.2f}) must add up to the "
+                    f"loan amount (\u20a6{amount:,.2f}).", "error"
+                )
                 return redirect(url_for("member_dashboard"))
-            if guarantor.id == current_user.id:
-                flash("You cannot be your own guarantor.", "error")
-                return redirect(url_for("member_dashboard"))
-
-            guarantor_entries.append((guarantor, g_amount))
-
-        if guarantor_entries[0][0].id == guarantor_entries[1][0].id:
-            flash("Please provide two different guarantors.", "error")
-            return redirect(url_for("member_dashboard"))
-
-        total_guaranteed = guarantor_entries[0][1] + guarantor_entries[1][1]
-        if abs(total_guaranteed - amount) > 0.01:
-            flash(
-                f"The two guaranteed amounts (\u20a6{total_guaranteed:,.2f}) must add up to the "
-                f"loan amount (\u20a6{amount:,.2f}).", "error"
-            )
-            return redirect(url_for("member_dashboard"))
 
         max_amount = loan_type.max_amount_for(current_user)
         if max_amount <= 0:
@@ -1402,4 +1426,4 @@ def _emit_vote_update(position_id):
 app = create_app()
 
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=True)
+    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=False)
