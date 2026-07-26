@@ -81,7 +81,7 @@
                 <input type="number" name="claimed_savings_balance" step="0.01" min="0" required
                        value="{{ '%.2f'|format(current_user.claimed_savings_balance if current_user.claimed_savings_balance is not none else current_user.savings_balance) }}"
                        class="w-full border border-brand-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gold-400 focus:border-gold-400 focus:outline-none transition">
-                <p class="text-xs text-brand-700/60 mt-1">This is sent to the admin for review alongside your loan application — it does not change your loan eligibility on its own.</p>
+                <p class="text-xs text-brand-700/60 mt-1">This determines the loan amounts you're eligible for — update it here if your savings balance has changed.</p>
             </div>
             <div class="flex flex-wrap gap-3 mb-3">
                 <select name="option_id" id="loan-form-option" required class="border border-brand-200 rounded-lg px-3 py-2 flex-1 min-w-[220px]">
