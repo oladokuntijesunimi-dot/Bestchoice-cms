@@ -10,16 +10,19 @@
     <!-- SIDEBAR -->
     <aside class="md:w-64 flex-shrink-0">
         <nav class="bg-white rounded-xl shadow p-2 flex md:flex-col gap-1 overflow-x-auto md:overflow-visible" id="sidebar-nav">
-            <button onclick="showTab('pending', this)" class="sidebar-btn active flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
+            {% if show_members %}
+            <button onclick="showTab('pending', this)" class="sidebar-btn {{ 'active' if default_tab == 'pending' else '' }} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
                 Pending Signups
                 {% if pending_members %}<span class="ml-auto bg-red-500 text-white rounded-full px-1.5 text-xs">{{ pending_members|length }}</span>{% endif %}
             </button>
-            <button onclick="showTab('members', this)" class="sidebar-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
+            <button onclick="showTab('members', this)" class="sidebar-btn {{ 'active' if default_tab == 'members' else '' }} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 Members
             </button>
-            <button onclick="showTab('loans', this)" class="sidebar-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
+            {% endif %}
+            {% if show_loans %}
+            <button onclick="showTab('loans', this)" class="sidebar-btn {{ 'active' if default_tab == 'loans' else '' }} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
                 Loans
                 {% if pending_loans %}<span class="ml-auto bg-red-500 text-white rounded-full px-1.5 text-xs">{{ pending_loans|length }}</span>{% endif %}
@@ -28,7 +31,9 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                 Loan Types
             </button>
-            <button onclick="showTab('voting', this)" class="sidebar-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
+            {% endif %}
+            {% if show_other %}
+            <button onclick="showTab('voting', this)" class="sidebar-btn {{ 'active' if default_tab == 'voting' else '' }} flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><path d="m9 12 2 2 4-4"/><path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/></svg>
                 Voting
                 {% if election and election.status == 'Open' %}<span class="ml-auto w-2 h-2 rounded-full bg-green-500"></span>{% endif %}
@@ -38,14 +43,20 @@
                 Gift Preferences
                 {% if gift_settings and gift_settings.is_active %}<span class="ml-auto w-2 h-2 rounded-full bg-green-500"></span>{% endif %}
             </button>
+            <button onclick="showTab('admins', this)" class="sidebar-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>
+                Manage Admins
+            </button>
+            {% endif %}
         </nav>
     </aside>
 
     <!-- MAIN CONTENT -->
     <main class="flex-1 min-w-0">
 
+{% if show_members %}
 <!-- PENDING SIGNUPS -->
-<div id="tab-pending" class="tab-panel bg-white rounded-xl shadow p-6">
+<div id="tab-pending" class="tab-panel bg-white rounded-xl shadow p-6 {{ '' if default_tab == 'pending' else 'hidden' }}">
     <h2 class="text-lg font-semibold mb-4">Pending Signups</h2>
     <div class="overflow-x-auto">
         <table class="w-full text-sm">
@@ -86,7 +97,7 @@
 </div>
 
 <!-- MEMBERS -->
-<div id="tab-members" class="tab-panel bg-white rounded-xl shadow p-6 hidden">
+<div id="tab-members" class="tab-panel bg-white rounded-xl shadow p-6 {{ '' if default_tab == 'members' else 'hidden' }}">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
         <h2 class="text-lg font-semibold">Members Directory</h2>
         <div class="flex gap-2 flex-wrap">
@@ -154,8 +165,11 @@
     </div>
 </div>
 
+{% endif %}
+
+{% if show_loans %}
 <!-- LOANS -->
-<div id="tab-loans" class="tab-panel bg-white rounded-xl shadow p-6 hidden">
+<div id="tab-loans" class="tab-panel bg-white rounded-xl shadow p-6 {{ '' if default_tab == 'loans' else 'hidden' }}">
     <h2 class="text-lg font-semibold mb-4">Pending Loan Applications</h2>
     <div class="overflow-x-auto mb-8">
         <table class="w-full text-sm">
@@ -262,7 +276,7 @@
 </div>
 
 <!-- LOAN TYPES -->
-<div id="tab-loantypes" class="tab-panel bg-white rounded-xl shadow p-6 hidden">
+<div id="tab-loantypes" class="tab-panel bg-white rounded-xl shadow p-6 {{ '' if default_tab == 'loantypes' else 'hidden' }}">
     <h2 class="text-lg font-semibold mb-1">Loan Types & Clauses</h2>
     <p class="text-sm text-brand-700/70 mb-4">
         Adjust caps, rates shown to members, and open/close seasonal loans (e.g. Household in December,
@@ -333,8 +347,11 @@
     {% endfor %}
 </div>
 
+{% endif %}
+
+{% if show_other %}
 <!-- VOTING -->
-<div id="tab-voting" class="tab-panel bg-white rounded-xl shadow p-6 hidden">
+<div id="tab-voting" class="tab-panel bg-white rounded-xl shadow p-6 {{ '' if default_tab == 'voting' else 'hidden' }}">
     <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
         <h2 class="text-lg font-semibold">Voting Management</h2>
         <div class="flex gap-2">
@@ -394,7 +411,7 @@
 </div>
 
 <!-- GIFT PREFERENCES -->
-<div id="tab-gifts" class="tab-panel bg-white rounded-xl shadow p-6 hidden">
+<div id="tab-gifts" class="tab-panel bg-white rounded-xl shadow p-6 {{ '' if default_tab == 'gifts' else 'hidden' }}">
     <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
         <h2 class="text-lg font-semibold">Gift Preferences</h2>
         <div class="flex gap-2">
@@ -436,9 +453,74 @@
     </div>
 </div>
 
+<!-- MANAGE ADMINS -->
+<div id="tab-admins" class="tab-panel bg-white rounded-xl shadow p-6 {{ '' if default_tab == 'admins' else 'hidden' }}">
+    <h2 class="text-lg font-semibold mb-4">Manage Admins</h2>
+
+    <form method="POST" action="{{ url_for('create_sub_admin') }}" class="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-6 border border-brand-100 rounded-lg p-4">
+        <input type="text" name="full_name" placeholder="Full name" required
+               class="border border-brand-200 rounded-lg px-3 py-2 text-sm">
+        <input type="text" name="username" placeholder="Username" required
+               class="border border-brand-200 rounded-lg px-3 py-2 text-sm">
+        <input type="password" name="password" placeholder="Password (min 6 chars)" minlength="6" required
+               class="border border-brand-200 rounded-lg px-3 py-2 text-sm">
+        <select name="admin_role" required class="border border-brand-200 rounded-lg px-3 py-2 text-sm">
+            <option value="">Access level...</option>
+            <option value="members">Members &amp; Pending Signups only</option>
+            <option value="loans">Loans &amp; Loan Types only</option>
+            <option value="super">Full access (super admin)</option>
+        </select>
+        <button type="submit" class="sm:col-span-4 bg-brand-700 hover:bg-brand-800 text-white font-medium py-2 rounded-lg text-sm">
+            Create Admin Account
+        </button>
+    </form>
+
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="text-left text-brand-700/70 border-b">
+                <th class="py-2">Full Name</th><th>Username</th><th>Access Level</th><th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in all_admins %}
+            <tr class="border-b last:border-0">
+                <td class="py-2">{{ a.full_name }}</td>
+                <td>{{ a.username }}</td>
+                <td>
+                    {% if a.admin_role == 'super' %}
+                        <span class="px-2 py-0.5 rounded-full text-xs bg-brand-100 text-brand-800">Full Access</span>
+                    {% elif a.admin_role == 'members' %}
+                        <span class="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">Members Only</span>
+                    {% elif a.admin_role == 'loans' %}
+                        <span class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700">Loans Only</span>
+                    {% else %}
+                        <span class="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">Unset</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if a.id != current_user.id %}
+                    <form method="POST" action="{{ url_for('delete_sub_admin', user_id=a.id) }}"
+                          onsubmit="return confirm('Delete admin account {{ a.username|e }}? This cannot be undone.');">
+                        <button class="text-red-600 underline text-xs">Delete</button>
+                    </form>
+                    {% else %}
+                    <span class="text-xs text-brand-700/40">This is you</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="py-4 text-brand-700/50 text-center">No admin accounts found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endif %}
+
     </main>
 </div>
 
+{% if show_members %}
 <!-- ADD MEMBER MODAL -->
 <div id="add-member-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
     <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
@@ -538,6 +620,9 @@
     </div>
 </div>
 
+{% endif %}
+
+{% if show_loans %}
 <!-- DECLINE LOAN MODAL -->
 <div id="decline-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
     <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
@@ -554,6 +639,8 @@
         </form>
     </div>
 </div>
+
+{% endif %}
 
 <style>
 .sidebar-btn { color: #163A29; }
