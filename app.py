@@ -95,6 +95,15 @@ def _run_lightweight_migrations():
     if "claimed_savings_balance" not in existing_columns:
         with db.engine.begin() as conn:
             conn.execute(text('ALTER TABLE "user" ADD COLUMN claimed_savings_balance FLOAT'))
+    if "admin_role" not in existing_columns:
+        with db.engine.begin() as conn:
+            conn.execute(text('ALTER TABLE "user" ADD COLUMN admin_role VARCHAR(20)'))
+    # Any admin created before this feature existed (or a fresh admin_role column) should
+    # default to full "super" access, so nobody's access silently shrinks on upgrade.
+    with db.engine.begin() as conn:
+        conn.execute(text(
+            "UPDATE \"user\" SET admin_role = 'super' WHERE role = 'Admin' AND admin_role IS NULL"
+        ))
 
 
 def _seed_loan_types():
@@ -179,6 +188,7 @@ def _seed_admin(app):
         full_name=os.environ.get("ADMIN_NAME", "Administrator"),
         account_number=admin_phone or f"admin-{admin_username}",
         role="Admin",
+        admin_role="super",
         account_status="Active",
         is_profile_complete=True,
     )
@@ -577,6 +587,8 @@ def register_routes(app):
             abort(404)
         if not current_user.is_admin and current_user.id != user_id:
             abort(403)
+        if current_user.is_admin and not current_user.can_manage_members:
+            abort(403)
         user = db.session.get(User, user_id)
         if not user:
             abort(404)
@@ -601,6 +613,8 @@ def register_routes(app):
         if not loan:
             abort(404)
         if not current_user.is_admin and current_user.id != loan.user_id:
+            abort(403)
+        if current_user.is_admin and not current_user.can_manage_loans:
             abort(403)
         if not loan.receipt_path:
             abort(404)
@@ -865,25 +879,48 @@ def register_routes(app):
         if not current_user.is_authenticated or not current_user.is_admin:
             abort(403)
 
+    def _require_admin_scope(*scopes):
+        """
+        Call after _admin_only(). A "super" admin passes regardless of scopes given.
+        Any other admin must have an admin_role matching one of the given scopes —
+        e.g. _require_admin_scope("members") or _require_admin_scope("loans").
+        Calling with no scopes at all means "super admin only".
+        """
+        _admin_only()
+        if current_user.admin_role != "super" and current_user.admin_role not in scopes:
+            abort(403)
+
     @app.route("/admin/dashboard")
     @login_required
     def admin_dashboard():
         _admin_only()
-        pending_members = User.query.filter_by(role="Member", account_status="Pending").all()
-        active_members = User.query.filter_by(role="Member").filter(User.account_status != "Pending").order_by(User.full_name).all()
 
-        pending_loans = Loan.query.filter_by(status="Pending").order_by(Loan.created_at.desc()).all()
-        decided_loans = Loan.query.filter(Loan.status != "Pending").order_by(Loan.created_at.desc()).limit(50).all()
+        show_members = current_user.can_manage_members
+        show_loans = current_user.can_manage_loans
+        show_other = current_user.is_super_admin
+        # Whichever section this admin sees first, matching sidebar order.
+        default_tab = "pending" if show_members else ("loans" if show_loans else "voting")
 
-        election = ElectionSettings.query.first()
-        positions = Position.query.all()
+        pending_members, active_members = [], []
+        if show_members:
+            pending_members = User.query.filter_by(role="Member", account_status="Pending").all()
+            active_members = User.query.filter_by(role="Member").filter(User.account_status != "Pending").order_by(User.full_name).all()
 
-        gift_rows = db.session.query(User, GiftPreference).join(
-            GiftPreference, GiftPreference.user_id == User.id
-        ).all()
-        gift_settings = GiftSettings.query.first()
+        pending_loans, decided_loans, loan_types = [], [], []
+        if show_loans:
+            pending_loans = Loan.query.filter_by(status="Pending").order_by(Loan.created_at.desc()).all()
+            decided_loans = Loan.query.filter(Loan.status != "Pending").order_by(Loan.created_at.desc()).limit(50).all()
+            loan_types = LoanType.query.order_by(LoanType.sort_order).all()
 
-        loan_types = LoanType.query.order_by(LoanType.sort_order).all()
+        election, positions, gift_rows, gift_settings, all_admins = None, [], [], None, []
+        if show_other:
+            election = ElectionSettings.query.first()
+            positions = Position.query.all()
+            gift_rows = db.session.query(User, GiftPreference).join(
+                GiftPreference, GiftPreference.user_id == User.id
+            ).all()
+            gift_settings = GiftSettings.query.first()
+            all_admins = User.query.filter_by(role="Admin").order_by(User.full_name).all()
 
         return render_template(
             "admin/dashboard.html",
@@ -895,6 +932,11 @@ def register_routes(app):
             positions=positions,
             gift_rows=gift_rows,
             gift_settings=gift_settings,
+            show_members=show_members,
+            show_loans=show_loans,
+            show_other=show_other,
+            default_tab=default_tab,
+            all_admins=all_admins,
             loan_types=loan_types,
         )
 
@@ -902,7 +944,7 @@ def register_routes(app):
     @app.route("/admin/member/<int:user_id>/approve", methods=["POST"])
     @login_required
     def approve_member(user_id):
-        _admin_only()
+        _require_admin_scope("members")
         user = db.session.get(User, user_id) or abort(404)
         if user.account_status != "Pending":
             flash("This member is not pending approval.", "error")
@@ -944,7 +986,7 @@ def register_routes(app):
     @app.route("/admin/member/<int:user_id>/reject", methods=["POST"])
     @login_required
     def reject_member(user_id):
-        _admin_only()
+        _require_admin_scope("members")
         user = db.session.get(User, user_id) or abort(404)
         user.account_status = "Rejected"
         db.session.commit()
@@ -955,7 +997,7 @@ def register_routes(app):
     @app.route("/admin/members/add", methods=["POST"])
     @login_required
     def add_member_manual():
-        _admin_only()
+        _require_admin_scope("members")
         full_name = request.form.get("full_name", "").strip()
         membership_code = request.form.get("membership_code", "").strip()
         account_number = request.form.get("account_number", "").strip()
@@ -997,7 +1039,7 @@ def register_routes(app):
     @app.route("/admin/members/bulk-import", methods=["POST"])
     @login_required
     def bulk_import_members():
-        _admin_only()
+        _require_admin_scope("members")
         file = request.files.get("import_file")
         if not file or file.filename == "":
             flash("Please choose a CSV or Excel file.", "error")
@@ -1069,7 +1111,7 @@ def register_routes(app):
     @app.route("/admin/member/<int:user_id>/edit", methods=["POST"])
     @login_required
     def edit_member(user_id):
-        _admin_only()
+        _require_admin_scope("members")
         user = db.session.get(User, user_id) or abort(404)
         new_name = request.form.get("full_name", user.full_name).strip()
         if new_name.lower() != user.full_name.lower() and _name_taken(new_name, exclude_id=user.id):
@@ -1099,7 +1141,7 @@ def register_routes(app):
     @app.route("/admin/member/<int:user_id>/delete", methods=["POST"])
     @login_required
     def delete_member(user_id):
-        _admin_only()
+        _require_admin_scope("members")
         user = db.session.get(User, user_id) or abort(404)
         if user.is_admin:
             flash("Cannot delete an admin account.", "error")
@@ -1125,7 +1167,7 @@ def register_routes(app):
     @app.route("/admin/member/<int:user_id>/reset-password", methods=["POST"])
     @login_required
     def admin_reset_member_password(user_id):
-        _admin_only()
+        _require_admin_scope("members")
         user = db.session.get(User, user_id) or abort(404)
         if user.is_admin:
             flash("Cannot reset an admin account password here.", "error")
@@ -1161,7 +1203,7 @@ def register_routes(app):
     @app.route("/admin/member/<int:user_id>/pdf")
     @login_required
     def member_pdf(user_id):
-        _admin_only()
+        _require_admin_scope("members")
         user = db.session.get(User, user_id) or abort(404)
         buf = build_member_profile_pdf(user)
         return send_file(
@@ -1172,7 +1214,7 @@ def register_routes(app):
     @app.route("/admin/member/<int:user_id>/brief-pdf")
     @login_required
     def member_brief_pdf(user_id):
-        _admin_only()
+        _require_admin_scope("members")
         user = db.session.get(User, user_id) or abort(404)
         buf = build_member_brief_pdf(user)
         return send_file(
@@ -1183,7 +1225,7 @@ def register_routes(app):
     @app.route("/admin/members/brief-pdf")
     @login_required
     def members_brief_pdf_combined():
-        _admin_only()
+        _require_admin_scope("members")
         members = User.query.filter_by(role="Member").all()
         buf = build_members_brief_pdf_combined(members)
         return send_file(
@@ -1194,7 +1236,7 @@ def register_routes(app):
     @app.route("/admin/members/export")
     @login_required
     def export_members():
-        _admin_only()
+        _require_admin_scope("members")
         members = User.query.filter_by(role="Member").all()
         brief_url_func = lambda u: url_for("member_brief_pdf", user_id=u.id, _external=True)
         buf = build_members_excel(members, brief_pdf_url_func=brief_url_func)
@@ -1206,7 +1248,7 @@ def register_routes(app):
     @app.route("/admin/members/export-csv")
     @login_required
     def export_members_csv():
-        _admin_only()
+        _require_admin_scope("members")
         members = User.query.filter_by(role="Member").all()
         buf = build_members_csv_minimal(members)
         return send_file(
@@ -1217,7 +1259,7 @@ def register_routes(app):
     @app.route("/admin/loan/<int:loan_id>/approve", methods=["POST"])
     @login_required
     def approve_loan(loan_id):
-        _admin_only()
+        _require_admin_scope("loans")
         loan = db.session.get(Loan, loan_id) or abort(404)
         if not loan.all_guarantors_accepted:
             statuses = ", ".join(f"{g.guarantor.full_name}: {g.status}" for g in loan.guarantors)
@@ -1232,7 +1274,7 @@ def register_routes(app):
     @app.route("/admin/loan/<int:loan_id>/decline", methods=["POST"])
     @login_required
     def decline_loan(loan_id):
-        _admin_only()
+        _require_admin_scope("loans")
         loan = db.session.get(Loan, loan_id) or abort(404)
         reason = request.form.get("reason", "").strip()
         if not reason:
@@ -1248,7 +1290,7 @@ def register_routes(app):
     @app.route("/admin/loan/<int:loan_id>/delete", methods=["POST"])
     @login_required
     def delete_loan(loan_id):
-        _admin_only()
+        _require_admin_scope("loans")
         loan = db.session.get(Loan, loan_id) or abort(404)
         delete_upload(loan.receipt_path)
         db.session.delete(loan)
@@ -1260,7 +1302,7 @@ def register_routes(app):
     @app.route("/admin/loan-type/<int:loan_type_id>/edit", methods=["POST"])
     @login_required
     def edit_loan_type(loan_type_id):
-        _admin_only()
+        _require_admin_scope("loans")
         lt = db.session.get(LoanType, loan_type_id) or abort(404)
         lt.clause = request.form.get("clause", lt.clause).strip()
         lt.season_label = request.form.get("season_label", "").strip() or None
@@ -1285,7 +1327,7 @@ def register_routes(app):
     @app.route("/admin/loan-type/<int:loan_type_id>/toggle", methods=["POST"])
     @login_required
     def toggle_loan_type(loan_type_id):
-        _admin_only()
+        _require_admin_scope("loans")
         lt = db.session.get(LoanType, loan_type_id) or abort(404)
         lt.is_active = not lt.is_active
         db.session.commit()
@@ -1295,7 +1337,7 @@ def register_routes(app):
     @app.route("/admin/loan-type/<int:loan_type_id>/option/add", methods=["POST"])
     @login_required
     def add_loan_type_option(loan_type_id):
-        _admin_only()
+        _require_admin_scope("loans")
         lt = db.session.get(LoanType, loan_type_id) or abort(404)
         try:
             tenure = int(request.form.get("tenure_months"))
@@ -1311,7 +1353,7 @@ def register_routes(app):
     @app.route("/admin/loan-type-option/<int:option_id>/delete", methods=["POST"])
     @login_required
     def delete_loan_type_option(option_id):
-        _admin_only()
+        _require_admin_scope("loans")
         option = db.session.get(LoanTypeOption, option_id) or abort(404)
         if len(option.loan_type.options) <= 1:
             flash("A loan type must keep at least one tenure/interest option.", "error")
@@ -1325,7 +1367,7 @@ def register_routes(app):
     @app.route("/admin/election/position/add", methods=["POST"])
     @login_required
     def add_position():
-        _admin_only()
+        _require_admin_scope()
         name = request.form.get("position_name", "").strip()
         candidate_names = [c.strip() for c in request.form.get("candidate_names", "").split(",") if c.strip()]
         if not name or not candidate_names:
@@ -1346,7 +1388,7 @@ def register_routes(app):
     @app.route("/admin/election/position/<int:position_id>/delete", methods=["POST"])
     @login_required
     def delete_position(position_id):
-        _admin_only()
+        _require_admin_scope()
         position = db.session.get(Position, position_id) or abort(404)
         db.session.delete(position)
         db.session.commit()
@@ -1356,7 +1398,7 @@ def register_routes(app):
     @app.route("/admin/election/set-status", methods=["POST"])
     @login_required
     def set_election_status():
-        _admin_only()
+        _require_admin_scope()
         new_status = request.form.get("status")
         if new_status not in ("Open", "Paused", "Closed"):
             flash("Invalid voting status.", "error")
@@ -1370,7 +1412,7 @@ def register_routes(app):
     @app.route("/admin/election/results")
     @login_required
     def election_results():
-        _admin_only()
+        _require_admin_scope()
         results = {}
         for position in Position.query.all():
             results[position.name] = [
@@ -1381,7 +1423,7 @@ def register_routes(app):
     @app.route("/admin/gift-preference/toggle", methods=["POST"])
     @login_required
     def toggle_gift_preference():
-        _admin_only()
+        _require_admin_scope()
         gift_settings = GiftSettings.query.first()
         gift_settings.is_active = not gift_settings.is_active
         db.session.commit()
@@ -1392,7 +1434,7 @@ def register_routes(app):
     @app.route("/admin/gift-preferences/export")
     @login_required
     def export_gift_preferences():
-        _admin_only()
+        _require_admin_scope()
         rows = db.session.query(User, GiftPreference).join(
             GiftPreference, GiftPreference.user_id == User.id
         ).all()
@@ -1401,6 +1443,59 @@ def register_routes(app):
             buf, as_attachment=True, download_name="gift_preferences.xlsx",
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
+    # ---- admin account management (super admin only) ----
+    @app.route("/admin/admins/create", methods=["POST"])
+    @login_required
+    def create_sub_admin():
+        _require_admin_scope()
+        full_name = request.form.get("full_name", "").strip()
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        scope = request.form.get("admin_role", "")
+
+        if not full_name or not username or not password:
+            flash("Full name, username, and password are all required.", "error")
+            return redirect(url_for("admin_dashboard"))
+        if scope not in ("members", "loans", "super"):
+            flash("Please select a valid access level.", "error")
+            return redirect(url_for("admin_dashboard"))
+        if len(password) < 6:
+            flash("Password must be at least 6 characters.", "error")
+            return redirect(url_for("admin_dashboard"))
+        if User.query.filter_by(username=username).first():
+            flash("That username is already taken.", "error")
+            return redirect(url_for("admin_dashboard"))
+
+        new_admin = User(
+            username=username,
+            full_name=full_name,
+            account_number=f"admin-{username}",
+            role="Admin",
+            admin_role=scope,
+            account_status="Active",
+            is_profile_complete=True,
+        )
+        new_admin.set_password(password)
+        db.session.add(new_admin)
+        db.session.commit()
+        flash(f"Admin account '{username}' created with {scope} access.", "success")
+        return redirect(url_for("admin_dashboard"))
+
+    @app.route("/admin/admins/<int:user_id>/delete", methods=["POST"])
+    @login_required
+    def delete_sub_admin(user_id):
+        _require_admin_scope()
+        target = db.session.get(User, user_id) or abort(404)
+        if not target.is_admin:
+            abort(404)
+        if target.id == current_user.id:
+            flash("You cannot delete your own account.", "error")
+            return redirect(url_for("admin_dashboard"))
+        db.session.delete(target)
+        db.session.commit()
+        flash(f"Admin account '{target.username}' deleted.", "success")
+        return redirect(url_for("admin_dashboard"))
 
     def current_app_default_password():
         from flask import current_app
@@ -1428,4 +1523,4 @@ def _emit_vote_update(position_id):
 app = create_app()
 
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=False)
+    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=True)
