@@ -67,6 +67,9 @@ class User(UserMixin, db.Model):
 
     password_hash = db.Column(db.String(255), nullable=True)
     role = db.Column(db.String(20), default="Member", nullable=False)  # Member / Admin
+    # Only meaningful when role == "Admin". One of: "super" (full access), "members"
+    # (Pending Signups + Members section only), "loans" (Loans + Loan Types only).
+    admin_role = db.Column(db.String(20), nullable=True)
     account_status = db.Column(db.String(20), default="Pending", nullable=False)  # Pending / Active / Rejected
     is_profile_complete = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -96,6 +99,18 @@ class User(UserMixin, db.Model):
     @property
     def is_admin(self):
         return self.role == "Admin"
+
+    @property
+    def is_super_admin(self):
+        return self.is_admin and self.admin_role == "super"
+
+    @property
+    def can_manage_members(self):
+        return self.is_admin and self.admin_role in ("super", "members")
+
+    @property
+    def can_manage_loans(self):
+        return self.is_admin and self.admin_role in ("super", "loans")
 
 
 class LoanType(db.Model):
