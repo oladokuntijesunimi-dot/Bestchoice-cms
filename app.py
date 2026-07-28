@@ -871,13 +871,6 @@ def register_routes(app):
         _admin_only()
         pending_members = User.query.filter_by(role="Member", account_status="Pending").all()
         active_members = User.query.filter_by(role="Member").filter(User.account_status != "Pending").order_by(User.full_name).all()
-        search_q = request.args.get("q", "").strip()
-        if search_q:
-            like = f"%{search_q}%"
-            active_members = [m for m in active_members if
-                               search_q.lower() in (m.full_name or "").lower()
-                               or search_q.lower() in (m.membership_code or "").lower()
-                               or search_q.lower() in (m.account_number or "")]
 
         pending_loans = Loan.query.filter_by(status="Pending").order_by(Loan.created_at.desc()).all()
         decided_loans = Loan.query.filter(Loan.status != "Pending").order_by(Loan.created_at.desc()).limit(50).all()
@@ -902,7 +895,6 @@ def register_routes(app):
             positions=positions,
             gift_rows=gift_rows,
             gift_settings=gift_settings,
-            search_q=search_q,
             loan_types=loan_types,
         )
 
@@ -1436,4 +1428,4 @@ def _emit_vote_update(position_id):
 app = create_app()
 
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=True)
+    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5001)), debug=False)
