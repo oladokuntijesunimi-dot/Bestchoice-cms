@@ -100,13 +100,14 @@
         </div>
     </div>
 
-    <form method="GET" class="mb-4">
+    <div class="mb-4">
         <div class="flex gap-2">
-            <input type="text" name="q" value="{{ search_q }}" placeholder="Search by name, code, or account number"
+            <input type="text" id="member-search-input" oninput="filterMembers()" value=""
+                   placeholder="Search by name, code, or account number — filters instantly"
                    class="border border-brand-200 rounded-lg px-3 py-2 flex-1 text-sm">
-            <button type="submit" class="bg-brand-700 text-white px-4 py-2 rounded-lg text-sm">Search</button>
         </div>
-    </form>
+        <p id="member-search-count" class="text-xs text-brand-700/50 mt-1"></p>
+    </div>
 
     <div class="overflow-x-auto">
         <table class="w-full text-sm">
@@ -117,7 +118,8 @@
             </thead>
             <tbody>
                 {% for m in active_members %}
-                <tr class="border-b last:border-0">
+                <tr class="border-b last:border-0 member-row"
+                    data-search="{{ (m.full_name or '')|lower }} {{ (m.membership_code or '')|lower }} {{ (m.account_number or '')|lower }}">
                     <td class="py-2">{{ m.membership_code or "-" }}</td>
                     <td>{{ m.full_name }}</td>
                     <td>{{ m.account_number }}</td>
@@ -566,6 +568,23 @@ function showTab(name, btn) {
     document.getElementById('tab-' + name).classList.remove('hidden');
     document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
+}
+
+function filterMembers() {
+    const query = document.getElementById('member-search-input').value.trim().toLowerCase();
+    const rows = document.querySelectorAll('.member-row');
+    let visibleCount = 0;
+    rows.forEach(row => {
+        const matches = !query || row.dataset.search.includes(query);
+        row.style.display = matches ? '' : 'none';
+        if (matches) visibleCount++;
+    });
+    const countEl = document.getElementById('member-search-count');
+    if (query) {
+        countEl.textContent = visibleCount + ' of ' + rows.length + ' member(s) match.';
+    } else {
+        countEl.textContent = '';
+    }
 }
 
 function openEditModal(id, name, accountNumber, position, savings, email, phone, office, claimedSavings) {
