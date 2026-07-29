@@ -175,10 +175,12 @@ def _seed_admin(app):
         if admin_phone and existing.account_number != admin_phone:
             existing.account_number = admin_phone
             updated = True
-        # If ADMIN_PASSWORD is provided, update the stored hash when it differs.
-        if admin_password and not existing.check_password(admin_password):
-            existing.set_password(admin_password)
-            updated = True
+        # Deliberately NOT re-syncing the password here on every boot: once the admin
+        # account exists, its password is owned by whoever changes it in the app (via
+        # the change-password page), the same as any other account. ADMIN_PASSWORD is
+        # only used to create the account the first time. If you ever need to force a
+        # reset, delete this admin's row in the database and redeploy — it will be
+        # recreated fresh using the current ADMIN_PASSWORD.
         if updated:
             db.session.commit()
         return
