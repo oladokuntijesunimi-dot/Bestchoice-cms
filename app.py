@@ -1,4 +1,5 @@
 import os
+import re
 import io
 import mimetypes
 import secrets
@@ -32,12 +33,13 @@ def create_app():
     app = Flask(__name__)
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 
-    db_url = os.environ.get("DATABASE_URL", "sqlite:///" + os.path.join(app.instance_path, "cms.db"))
-    # Render/Heroku-style URLs sometimes start with postgres:// ; SQLAlchemy needs postgresql://
-    if db_url.startswith("postgres://"):
-        db_url = db_url.replace("postgres://", "postgresql://", 1)
-    elif db_url.startswith("postgresql+psycopg://"):
-        db_url = db_url.replace("postgresql+psycopg://", "postgresql://", 1)
+    default_sqlite = "sqlite:///" + os.path.join(app.instance_path, "cms.db")
+    db_url = (os.environ.get("DATABASE_URL") or "").strip().strip("\"'").strip()
+    if not db_url:
+        db_url = default_sqlite
+    # Normalise any Postgres URL style (postgres://, postgresql+psycopg://, postgresql+psycopg2://)
+    # to plain postgresql://, which SQLAlchemy maps to the psycopg2 driver we install.
+    db_url = re.sub(r"^postgres(?:ql)?(?:\+\w+)?://", "postgresql://", db_url, count=1)
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     # pool_pre_ping: test each pooled connection with a cheap query before using it, and
