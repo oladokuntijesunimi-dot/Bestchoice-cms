@@ -36,6 +36,8 @@ def create_app():
     # Render/Heroku-style URLs sometimes start with postgres:// ; SQLAlchemy needs postgresql://
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
+    elif db_url.startswith("postgresql+psycopg://"):
+        db_url = db_url.replace("postgresql+psycopg://", "postgresql://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     # pool_pre_ping: test each pooled connection with a cheap query before using it, and
