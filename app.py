@@ -37,9 +37,10 @@ def create_app():
     db_url = (os.environ.get("DATABASE_URL") or "").strip().strip("\"'").strip()
     if not db_url:
         db_url = default_sqlite
-    # Normalise any Postgres URL style (postgres://, postgresql+psycopg://, postgresql+psycopg2://)
-    # to plain postgresql://, which SQLAlchemy maps to the psycopg2 driver we install.
-    db_url = re.sub(r"^postgres(?:ql)?(?:\+\w+)?://", "postgresql://", db_url, count=1)
+    # Normalise any Postgres URL style (postgres://, postgresql://, postgresql+psycopg://) to an
+    # explicit psycopg2 URL. SQLAlchemy 2.1+ defaults plain postgresql:// to psycopg v3, which we
+    # don't install, so the driver must be named explicitly.
+    db_url = re.sub(r"^postgres(?:ql)?(?:\+\w+)?://", "postgresql+psycopg2://", db_url, count=1)
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     # pool_pre_ping: test each pooled connection with a cheap query before using it, and
